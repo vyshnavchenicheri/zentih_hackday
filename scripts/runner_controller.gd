@@ -1,6 +1,14 @@
 extends CharacterBody2D
 class_name RunnerController
 
+## Game State Machine
+enum GameState {
+	SKYFALL,
+	TITLE_MENU,
+	PLAYING,
+	DEAD
+}
+
 ## Signals for HUD and Game Systems
 signal speed_updated(kmh: float)
 signal dash_pips_changed(current: int, max_pips: int)
@@ -11,12 +19,37 @@ signal distance_updated(meters: int)
 signal shapeshift_changed(is_dog: bool)
 signal area_changed(area_id: int, area_name: String)
 
+signal game_state_changed(new_state: int)
+signal dash_cooldown_updated(remaining: float, total: float)
+signal slide_cooldown_updated(remaining: float, total: float)
+signal double_jump_cooldown_updated(remaining: float, total: float)
+signal dog_kills_updated(current: int, required: int)
+signal retreat_updated(current_retreat_m: float, max_retreat_m: float)
+signal player_died(cause: String, distance_m: int, dog_kills: int)
+signal hero_landed()
+signal action_rejected(msg: String)
+signal action_unlocked(msg: String)
+
+@export_group("Game State")
+@export var game_state: GameState = GameState.SKYFALL
+var is_dead: bool = false
+var cause_of_death: String = ""
+var landing_crouch_timer: float = 0.0
+
 @export_group("Snappy Movement (No Momentum Drift)")
 @export var run_speed: float = 400.0          # Fixed, crisp running speed
 @export var jump_force: float = -620.0        # First jump impulse
 @export var double_jump_force: float = -560.0 # Double jump impulse to easily reach top platforms
 @export var gravity: float = 1600.0
 @export var max_jumps: int = 2 # Double jump enabled
+
+@export_group("Mechanic Cooldowns")
+@export var dash_cooldown: float = 1.0        # 1.0s cooldown
+var dash_cooldown_timer: float = 0.0
+@export var slide_cooldown: float = 1.0       # 1.0s cooldown
+var slide_cooldown_timer: float = 0.0
+@export var double_jump_cooldown: float = 3.0 # 3.0s cooldown
+var double_jump_cooldown_timer: float = 0.0
 
 @export_group("Momentary Thruster Dash")
 @export var dash_speed: float = 1200.0        # High burst speed during dash
@@ -39,11 +72,24 @@ var last_wall_normal: Vector2 = Vector2.ZERO
 var wall_coyote_timer: float = 0.0
 var wall_jump_lock_timer: float = 0.0
 
+@export_group("Shapeshifting & Dog Hunt Unlock")
+var is_shapeshifted: bool = false             # Cyber Hound Form
+var dogs_killed: int = 0
+const DOGS_REQUIRED_FOR_SHAPESHIFT: int = 10
+
+@export_group("Retreat Boundary Tracker")
+var max_forward_x: float = 160.0
+var retreat_distance_meters: float = 0.0
+const MAX_RETREAT_METERS: float = 1000.0
+
+# Camera Cinematic Zoom & Impact Shake
+var target_zoom: Vector2 = Vector2(1.85, 1.85) # Up close for dramatic skyfall & landing
+var trauma: float = 0.0
+
 # Player State
 var facing: int = 1
 var jumps_left: int = 2
 var preview_idle: bool = false
-var is_shapeshifted: bool = false # Cyber Hound Form
 var is_dashing: bool = false
 var dash_timer: float = 0.0
 var slash_timer: float = 0.0
@@ -67,12 +113,27 @@ const AREA_NAMES = [
 @onready var visuals: Node2D = $Visuals if has_node("Visuals") else null
 @onready var slash_area: Area2D = $SlashArea if has_node("SlashArea") else null
 @onready var col_shape: CollisionShape2D = $CollisionShape2D if has_node("CollisionShape2D") else null
+@onready var camera: Camera2D = $Camera2D if has_node("Camera2D") else null
 
 func _ready() -> void:
+	# Configure snappy slope handling on CharacterBody2D
+	floor_constant_speed = true
+	floor_snap_length = 12.0
+	floor_max_angle = deg_to_rad(45.0)
+	
+	if camera:
+		camera.zoom = Vector2(1.85, 1.85) # Start up-close for skyfall
+	
+	max_forward_x = global_position.x
 	emit_signal("dash_pips_changed", dash_pips, max_dash_pips)
 	emit_signal("hp_changed", current_hp)
 	emit_signal("jumps_changed", jumps_left, max_jumps)
 	emit_signal("shapeshift_changed", is_shapeshifted)
+	emit_signal("dog_kills_updated", dogs_killed, DOGS_REQUIRED_FOR_SHAPESHIFT)
+	emit_signal("dash_cooldown_updated", dash_cooldown_timer, dash_cooldown)
+	emit_signal("slide_cooldown_updated", slide_cooldown_timer, slide_cooldown)
+	emit_signal("double_jump_cooldown_updated", double_jump_cooldown_timer, double_jump_cooldown)
+	emit_signal("game_state_changed", game_state)
 	check_area_transition()
 	
 	if col_shape and col_shape.shape:
@@ -85,9 +146,88 @@ func _ready() -> void:
 		if not slash_area.body_entered.is_connected(_on_slash_body_entered):
 			slash_area.body_entered.connect(_on_slash_body_entered)
 
+func _process(delta: float) -> void:
+	# Smooth camera zoom transition
+	if camera:
+		camera.zoom = camera.zoom.lerp(target_zoom, delta * 3.5)
+		
+		# Screen shake decay
+		if trauma > 0.0:
+			trauma = max(0.0, trauma - delta * 2.2)
+			var shake_offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * trauma * 16.0
+			camera.offset = shake_offset
+		elif camera.offset != Vector2.ZERO:
+			camera.offset = Vector2.ZERO
+
 func _physics_process(delta: float) -> void:
+	match game_state:
+		GameState.SKYFALL:
+			_process_skyfall(delta)
+			return
+		GameState.TITLE_MENU:
+			_process_title_menu(delta)
+			return
+		GameState.DEAD:
+			_process_dead(delta)
+			return
+		GameState.PLAYING:
+			_process_playing(delta)
+
+func _process_skyfall(delta: float) -> void:
+	velocity.x = 0.0
+	velocity.y += gravity * delta
+	move_and_slide()
+	
+	if is_on_floor():
+		# Skyfall Hero Landing Impact!
+		velocity = Vector2.ZERO
+		game_state = GameState.TITLE_MENU
+		landing_crouch_timer = 0.65
+		trauma = 0.85 # Strong screen shake on impact
+		spawn_hero_landing_particles()
+		emit_signal("hero_landed")
+		emit_signal("game_state_changed", game_state)
+	
+	if visuals:
+		visuals.queue_redraw()
+
+func _process_title_menu(delta: float) -> void:
+	velocity = Vector2.ZERO
+	if landing_crouch_timer > 0.0:
+		landing_crouch_timer -= delta
+	if visuals:
+		visuals.queue_redraw()
+
+func _process_dead(delta: float) -> void:
+	velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
+	if not is_on_floor():
+		velocity.y += gravity * delta
+	move_and_slide()
+	if visuals:
+		visuals.queue_redraw()
+
+func _process_playing(delta: float) -> void:
 	recharge_dash_pips(delta)
 	handle_invulnerability(delta)
+	
+	# Update cooldown timers
+	if dash_cooldown_timer > 0.0:
+		dash_cooldown_timer = max(0.0, dash_cooldown_timer - delta)
+		emit_signal("dash_cooldown_updated", dash_cooldown_timer, dash_cooldown)
+	
+	if slide_cooldown_timer > 0.0:
+		slide_cooldown_timer = max(0.0, slide_cooldown_timer - delta)
+		emit_signal("slide_cooldown_updated", slide_cooldown_timer, slide_cooldown)
+	
+	if double_jump_cooldown_timer > 0.0:
+		double_jump_cooldown_timer = max(0.0, double_jump_cooldown_timer - delta)
+		emit_signal("double_jump_cooldown_updated", double_jump_cooldown_timer, double_jump_cooldown)
+	
+	# Backwards retreat tracking (physical horde awaits at 1000M)
+	if global_position.x > max_forward_x:
+		max_forward_x = global_position.x
+	retreat_distance_meters = max(0.0, (max_forward_x - global_position.x) / 10.0)
+	emit_signal("retreat_updated", retreat_distance_meters, MAX_RETREAT_METERS)
 	
 	var active_run_speed: float = run_speed * (1.5 if is_shapeshifted else 1.0)
 	var active_slide_speed: float = slide_speed * (1.5 if is_shapeshifted else 1.0)
@@ -222,6 +362,8 @@ func _physics_process(delta: float) -> void:
 	check_zone_tier()
 
 func get_horizontal_input() -> float:
+	if game_state != GameState.PLAYING:
+		return 0.0
 	var x: float = Input.get_axis("move_left", "move_right")
 	if x != 0.0:
 		return sign(x)
@@ -232,6 +374,22 @@ func get_horizontal_input() -> float:
 	return clampf(x, -1.0, 1.0)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if game_state == GameState.TITLE_MENU:
+		if (event is InputEventKey and event.pressed and not event.is_echo()) or (event is InputEventMouseButton and event.pressed):
+			start_game()
+		return
+	
+	if game_state == GameState.DEAD:
+		if event is InputEventKey and event.pressed and not event.is_echo():
+			if event.keycode == KEY_R:
+				restart_game()
+			elif event.keycode == KEY_M or event.keycode == KEY_ESCAPE:
+				return_to_main_menu()
+		return
+	
+	if game_state != GameState.PLAYING:
+		return
+	
 	if event.is_action_pressed("jump") and not event.is_echo():
 		trigger_jump()
 	elif event.is_action_pressed("dash") and not event.is_echo():
@@ -241,16 +399,49 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("shapeshift") or (event is InputEventKey and event.pressed and not event.is_echo() and (event.keycode == KEY_Q or event.keycode == KEY_E or event.keycode == KEY_C or event.keycode == KEY_SHIFT)):
 		toggle_shapeshift()
 	elif event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_R:
-		get_tree().reload_current_scene()
+		restart_game()
+
+func start_game() -> void:
+	if game_state == GameState.PLAYING:
+		return
+	game_state = GameState.PLAYING
+	target_zoom = Vector2(1.15, 1.15) # Smoothly zoom out to standard gameplay view!
+	emit_signal("game_state_changed", game_state)
+	emit_signal("dash_cooldown_updated", dash_cooldown_timer, dash_cooldown)
+	emit_signal("slide_cooldown_updated", slide_cooldown_timer, slide_cooldown)
+	emit_signal("double_jump_cooldown_updated", double_jump_cooldown_timer, double_jump_cooldown)
+	emit_signal("dog_kills_updated", dogs_killed, DOGS_REQUIRED_FOR_SHAPESHIFT)
+
+func restart_game() -> void:
+	get_tree().reload_current_scene()
+
+func return_to_main_menu() -> void:
+	get_tree().reload_current_scene()
+
+func register_dog_kill() -> void:
+	dogs_killed += 1
+	emit_signal("dog_kills_updated", dogs_killed, DOGS_REQUIRED_FOR_SHAPESHIFT)
+	if dogs_killed == DOGS_REQUIRED_FOR_SHAPESHIFT:
+		emit_signal("action_unlocked", "HOUND FORM UNLOCKED! PRESS [Q]")
+
+func can_shapeshift() -> bool:
+	return dogs_killed >= DOGS_REQUIRED_FOR_SHAPESHIFT
 
 func toggle_shapeshift() -> void:
+	if game_state != GameState.PLAYING:
+		return
 	if is_sliding and has_ceiling_above():
-		return # Cannot stand up/transform into ceiling while under low obstacle
+		return
+	
+	if not is_shapeshifted and not can_shapeshift():
+		emit_signal("action_rejected", "HOUND FORM LOCKED: HUNT %d/%d HOUNDS" % [dogs_killed, DOGS_REQUIRED_FOR_SHAPESHIFT])
+		return
+	
 	is_shapeshifted = not is_shapeshifted
 	if is_sliding:
 		end_slide()
 	if is_shapeshifted:
-		jumps_left = 0 # No double jumping in dog form
+		jumps_left = 0
 	else:
 		if is_on_floor():
 			jumps_left = max_jumps
@@ -276,10 +467,9 @@ func perform_wall_jump() -> void:
 	velocity.y = wall_jump_force_y * jump_mult
 	facing = int(push_dir)
 	wall_coyote_timer = 0.0
-	wall_jump_lock_timer = 0.18 # Smooth kick-off window before player steering resumes
+	wall_jump_lock_timer = 0.18
 	is_wall_sliding = false
 	
-	# Wall jump resets air jumps for human form
 	jumps_left = 0 if is_shapeshifted else max_jumps - 1
 	emit_signal("jumps_changed", jumps_left, max_jumps)
 	
@@ -291,12 +481,11 @@ func has_ceiling_above() -> bool:
 	var space_state = get_world_2d().direct_space_state
 	if not space_state:
 		return false
-	# Cast 3 vertical detection rays above shoulders and head to check for low overpasses/ceilings
 	var offsets = [-9.0, 0.0, 9.0]
 	for ox in offsets:
 		var from_pos = global_position + Vector2(ox, 2.0)
 		var to_pos = global_position + Vector2(ox, -26.0)
-		var query = PhysicsRayQueryParameters2D.create(from_pos, to_pos, 1) # Layer 1 (Environment)
+		var query = PhysicsRayQueryParameters2D.create(from_pos, to_pos, 1) # Environment
 		query.exclude = [get_rid()]
 		var hit = space_state.intersect_ray(query)
 		if not hit.is_empty():
@@ -304,36 +493,48 @@ func has_ceiling_above() -> bool:
 	return false
 
 func trigger_jump() -> void:
+	if game_state != GameState.PLAYING:
+		return
 	if is_sliding:
 		if has_ceiling_above():
-			return # Cannot jump/stand up while trapped under low obstacle!
+			return
 		end_slide()
 	
-	# Check for Wall Jump first!
 	if can_wall_jump():
 		perform_wall_jump()
 		return
 	
-	# Jump height increases by 50% in dog form (v_jump * sqrt(1.5))
 	var jump_mult: float = sqrt(1.5) if is_shapeshifted else 1.0
 	
 	if is_on_floor():
-		# 1st Jump (from ground)
 		velocity.y = jump_force * jump_mult
 		jumps_left = 0 if is_shapeshifted else max_jumps - 1
 		emit_signal("jumps_changed", jumps_left, max_jumps)
 		spawn_jump_particles()
 	elif jumps_left > 0 and not is_shapeshifted:
-		# 2nd Jump (Mid-Air Double Jump) - STRICTLY DISABLED in Dog Form!
+		if double_jump_cooldown_timer > 0.0:
+			emit_signal("action_rejected", "AIR JUMP COOLDOWN: %.1fs" % double_jump_cooldown_timer)
+			return
+		
 		velocity.y = double_jump_force
 		jumps_left -= 1
+		double_jump_cooldown_timer = double_jump_cooldown # 3.0s cooldown
+		emit_signal("double_jump_cooldown_updated", double_jump_cooldown_timer, double_jump_cooldown)
 		emit_signal("jumps_changed", jumps_left, max_jumps)
-		spawn_jump_particles()
+		spawn_double_jump_particles()
 
 func trigger_slide() -> void:
-	# STRICTLY DISABLED IN DOG FORM!
+	if game_state != GameState.PLAYING:
+		return
 	if not is_on_floor() or is_dashing or is_sliding or is_shapeshifted:
 		return
+	# 1.0s slide cooldown
+	if slide_cooldown_timer > 0.0:
+		emit_signal("action_rejected", "SLIDE COOLDOWN: %.1fs" % slide_cooldown_timer)
+		return
+	
+	slide_cooldown_timer = slide_cooldown
+	emit_signal("slide_cooldown_updated", slide_cooldown_timer, slide_cooldown)
 	
 	is_sliding = true
 	slide_timer = slide_duration
@@ -345,7 +546,6 @@ func end_slide() -> void:
 	if not is_sliding:
 		return
 	if has_ceiling_above():
-		# Can't stand up yet! Delay until player fully clears the obstacle overhead
 		return
 	is_sliding = false
 	slide_timer = 0.0
@@ -364,39 +564,30 @@ func set_crouch_collision(crouching: bool) -> void:
 				col_shape.position = Vector2(0, 8)
 		else:
 			if crouching:
-				# Drop height from 36px to 16px to slide smoothly under low overhead beams
 				col_shape.shape.size = Vector2(28, 16)
 				col_shape.position = Vector2(0, 10)
 			else:
-				# Standard humanoid runner
 				col_shape.shape.size = Vector2(20, 36)
 				col_shape.position = Vector2(0, 0)
 
-func spawn_transform_particles() -> void:
-	var emitter = CPUParticles2D.new()
-	emitter.emitting = true
-	emitter.one_shot = true
-	emitter.lifetime = 0.4
-	emitter.amount = 32
-	emitter.explosiveness = 0.95
-	emitter.spread = 180.0
-	emitter.initial_velocity_min = 140.0
-	emitter.initial_velocity_max = 260.0
-	emitter.color = Color(0.0, 0.95, 1.0) if is_shapeshifted else Color(0.95, 0.6, 0.1)
-	get_parent().add_child(emitter)
-	emitter.global_position = global_position
-	emitter.finished.connect(emitter.queue_free)
-
 func trigger_momentary_dash() -> void:
+	if game_state != GameState.PLAYING:
+		return
+	# 1.0s dash cooldown
+	if dash_cooldown_timer > 0.0:
+		emit_signal("action_rejected", "DASH COOLDOWN: %.1fs" % dash_cooldown_timer)
+		return
 	if is_dashing or dash_pips <= 0:
 		return
 	if is_sliding:
 		if has_ceiling_above():
-			return # Cannot stand up into ceiling to dash!
+			return
 		end_slide()
 	
 	dash_pips -= 1
+	dash_cooldown_timer = dash_cooldown # 1.0s cooldown
 	emit_signal("dash_pips_changed", dash_pips, max_dash_pips)
+	emit_signal("dash_cooldown_updated", dash_cooldown_timer, dash_cooldown)
 	
 	is_dashing = true
 	dash_timer = dash_duration
@@ -428,7 +619,10 @@ func handle_invulnerability(delta: float) -> void:
 			visuals.modulate.a = 1.0
 
 func take_damage(amount: float, knockback_dir: float = 0.0) -> void:
-	if invulnerable_timer > 0.0 or is_dashing or is_sliding or is_shapeshifted:
+	# No damage during SKYFALL or TITLE_MENU!
+	if game_state != GameState.PLAYING:
+		return
+	if is_dead or invulnerable_timer > 0.0 or is_dashing or is_sliding or is_shapeshifted:
 		return
 	
 	current_hp = max(0.0, current_hp - amount)
@@ -436,6 +630,23 @@ func take_damage(amount: float, knockback_dir: float = 0.0) -> void:
 	velocity.x = (knockback_dir if knockback_dir != 0.0 else -facing) * 300.0
 	velocity.y = -260.0
 	emit_signal("hp_changed", current_hp)
+	
+	if current_hp <= 0.0:
+		die("HULL INTEGRITY COMPROMISED")
+
+func die(reason: String = "CRITICAL DAMAGE") -> void:
+	if is_dead:
+		return
+	is_dead = true
+	game_state = GameState.DEAD
+	cause_of_death = reason
+	velocity.x = -facing * 220.0
+	velocity.y = -340.0
+	emit_signal("player_died", cause_of_death, int(global_position.x / 10.0), dogs_killed)
+	emit_signal("game_state_changed", game_state)
+	spawn_death_particles()
+	if visuals:
+		visuals.queue_redraw()
 
 func refund_dash_pip() -> void:
 	dash_pips = min(max_dash_pips, dash_pips + 1)
@@ -489,8 +700,73 @@ func _on_slash_body_entered(body: Node2D) -> void:
 		else:
 			body.queue_free()
 
+func spawn_hero_landing_particles() -> void:
+	# Heavy ground impact shockwave & sparks
+	var emitter = CPUParticles2D.new()
+	emitter.emitting = true
+	emitter.one_shot = true
+	emitter.lifetime = 0.65
+	emitter.amount = 40
+	emitter.explosiveness = 0.98
+	emitter.direction = Vector2(0, -1)
+	emitter.spread = 85.0
+	emitter.initial_velocity_min = 160.0
+	emitter.initial_velocity_max = 340.0
+	emitter.color = Color(0.0, 0.95, 1.0)
+	get_parent().add_child(emitter)
+	emitter.global_position = global_position + Vector2(0, 16)
+	emitter.finished.connect(emitter.queue_free)
+	
+	# Horizontal dirt/metal blast along floor left and right
+	for dir_x in [-1.0, 1.0]:
+		var side_emit = CPUParticles2D.new()
+		side_emit.emitting = true
+		side_emit.one_shot = true
+		side_emit.lifetime = 0.45
+		side_emit.amount = 16
+		side_emit.explosiveness = 0.95
+		side_emit.direction = Vector2(dir_x, -0.2)
+		side_emit.spread = 30.0
+		side_emit.initial_velocity_min = 120.0
+		side_emit.initial_velocity_max = 240.0
+		side_emit.color = Color(1.0, 0.75, 0.2)
+		get_parent().add_child(side_emit)
+		side_emit.global_position = global_position + Vector2(0, 16)
+		side_emit.finished.connect(side_emit.queue_free)
+
+func spawn_double_jump_particles() -> void:
+	var emitter = CPUParticles2D.new()
+	emitter.emitting = true
+	emitter.one_shot = true
+	emitter.explosiveness = 0.95
+	emitter.lifetime = 0.35
+	emitter.amount = 20
+	emitter.direction = Vector2(0, 1)
+	emitter.spread = 80.0
+	emitter.initial_velocity_min = 80.0
+	emitter.initial_velocity_max = 200.0
+	emitter.color = Color(0.0, 1.0, 0.8)
+	get_parent().add_child(emitter)
+	emitter.global_position = global_position + Vector2(0, 18)
+	emitter.finished.connect(emitter.queue_free)
+
+func spawn_death_particles() -> void:
+	var emitter = CPUParticles2D.new()
+	emitter.emitting = true
+	emitter.one_shot = true
+	emitter.explosiveness = 0.95
+	emitter.lifetime = 0.7
+	emitter.amount = 40
+	emitter.direction = Vector2(0, -1)
+	emitter.spread = 180.0
+	emitter.initial_velocity_min = 90.0
+	emitter.initial_velocity_max = 300.0
+	emitter.color = Color(1.0, 0.2, 0.2)
+	get_parent().add_child(emitter)
+	emitter.global_position = global_position
+	emitter.finished.connect(emitter.queue_free)
+
 func spawn_dash_particles() -> void:
-	# Burst sparks
 	var emitter = CPUParticles2D.new()
 	emitter.emitting = true
 	emitter.one_shot = true
@@ -568,4 +844,19 @@ func spawn_wall_jump_particles(norm: Vector2) -> void:
 	emitter.color = Color(0.0, 0.95, 1.0) if is_shapeshifted else Color(0.95, 0.6, 0.1)
 	get_parent().add_child(emitter)
 	emitter.global_position = global_position + Vector2(-norm_x * 10.0, 0.0)
+	emitter.finished.connect(emitter.queue_free)
+
+func spawn_transform_particles() -> void:
+	var emitter = CPUParticles2D.new()
+	emitter.emitting = true
+	emitter.one_shot = true
+	emitter.lifetime = 0.4
+	emitter.amount = 32
+	emitter.explosiveness = 0.95
+	emitter.spread = 180.0
+	emitter.initial_velocity_min = 140.0
+	emitter.initial_velocity_max = 260.0
+	emitter.color = Color(0.0, 0.95, 1.0) if is_shapeshifted else Color(0.95, 0.6, 0.1)
+	get_parent().add_child(emitter)
+	emitter.global_position = global_position
 	emitter.finished.connect(emitter.queue_free)

@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/hud_controller.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/cyber_ring_gauge.gd" id="2_gauge"]
+[ext_resource type="Script" path="res://scripts/leonidas_title_visual.gd" id="3_title_vis"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.04, 0.07, 0.1, 0.85)
@@ -14,6 +15,68 @@ corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.03, 0.06, 0.09, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.85, 1, 0.35)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_retreat"]
+bg_color = Color(0.2, 0.04, 0.04, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.25, 0.25, 0.85)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_modal"]
+bg_color = Color(0.03, 0.05, 0.08, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.95, 1, 0.7)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0.95, 1, 0.15)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+bg_color = Color(0.05, 0.16, 0.24, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.95, 1, 0.8)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
+bg_color = Color(0, 0.5, 0.7, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
@@ -28,7 +91,7 @@ mouse_filter = 2
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_bottom = 14
 
 [node name="TopBar" type="HBoxContainer" parent="MarginContainer"]
 layout_mode = 2
@@ -36,7 +99,7 @@ size_flags_vertical = 0
 theme_override_constants/separation = 16
 
 [node name="LeftPanel" type="PanelContainer" parent="MarginContainer/TopBar"]
-custom_minimum_size = Vector2(250, 110)
+custom_minimum_size = Vector2(250, 100)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
@@ -46,7 +109,7 @@ theme_override_constants/separation = 14
 alignment = 1
 
 [node name="RingGauge" type="Control" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer"]
-custom_minimum_size = Vector2(100, 100)
+custom_minimum_size = Vector2(90, 90)
 layout_mode = 2
 size_flags_vertical = 4
 script = ExtResource("2_gauge")
@@ -55,7 +118,7 @@ script = ExtResource("2_gauge")
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
-theme_override_constants/separation = 5
+theme_override_constants/separation = 4
 
 [node name="Header" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox"]
 layout_mode = 2
@@ -96,7 +159,7 @@ theme_override_font_sizes/font_size = 9
 text = "GAUGE: GREEN=HP | CYAN=NRG"
 
 [node name="RightPanel" type="PanelContainer" parent="MarginContainer/TopBar"]
-custom_minimum_size = Vector2(190, 64)
+custom_minimum_size = Vector2(190, 60)
 layout_mode = 2
 size_flags_horizontal = 10
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
@@ -118,3 +181,359 @@ theme_override_colors/font_color = Color(0.95, 0.65, 0.15, 1)
 theme_override_font_sizes/font_size = 10
 text = "[HUMAN] (Q: SHIFT)"
 horizontal_alignment = 1
+
+[node name="RetreatBanner" type="PanelContainer" parent="MarginContainer"]
+visible = false
+custom_minimum_size = Vector2(420, 32)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_retreat")
+
+[node name="RetreatLabel" type="Label" parent="MarginContainer/RetreatBanner"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.2, 1)
+theme_override_font_sizes/font_size = 11
+text = "⚠️ RETREAT DISTANCE: 0M / 1000M ⚠️"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FeedbackToast" type="Label" parent="MarginContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+theme_override_colors/font_color = Color(1, 0.9, 0.2, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_font_sizes/font_size = 13
+text = "NOTIFICATION"
+horizontal_alignment = 1
+
+[node name="AbilitiesDock" type="HBoxContainer" parent="MarginContainer"]
+custom_minimum_size = Vector2(580, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="DashCard" type="PanelContainer" parent="MarginContainer/AbilitiesDock"]
+custom_minimum_size = Vector2(130, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer/AbilitiesDock/DashCard"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 2
+
+[node name="HeaderHBox" type="HBoxContainer" parent="MarginContainer/AbilitiesDock/DashCard/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="MarginContainer/AbilitiesDock/DashCard/VBox/HeaderHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 9
+text = "⚡ DASH [SPACE]"
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/AbilitiesDock/DashCard/VBox/HeaderHBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 9
+text = "READY"
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/AbilitiesDock/DashCard/VBox"]
+custom_minimum_size = Vector2(0, 5)
+layout_mode = 2
+max_value = 1.0
+value = 1.0
+show_percentage = false
+
+[node name="JumpCard" type="PanelContainer" parent="MarginContainer/AbilitiesDock"]
+custom_minimum_size = Vector2(130, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer/AbilitiesDock/JumpCard"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 2
+
+[node name="HeaderHBox" type="HBoxContainer" parent="MarginContainer/AbilitiesDock/JumpCard/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="MarginContainer/AbilitiesDock/JumpCard/VBox/HeaderHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 9
+text = "▲ AIR JUMP [W]"
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/AbilitiesDock/JumpCard/VBox/HeaderHBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18, 1, 0.45, 1)
+theme_override_font_sizes/font_size = 9
+text = "READY"
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/AbilitiesDock/JumpCard/VBox"]
+custom_minimum_size = Vector2(0, 5)
+layout_mode = 2
+max_value = 1.0
+value = 1.0
+show_percentage = false
+
+[node name="SlideCard" type="PanelContainer" parent="MarginContainer/AbilitiesDock"]
+custom_minimum_size = Vector2(120, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer/AbilitiesDock/SlideCard"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 2
+
+[node name="HeaderHBox" type="HBoxContainer" parent="MarginContainer/AbilitiesDock/SlideCard/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="MarginContainer/AbilitiesDock/SlideCard/VBox/HeaderHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 9
+text = "▼ SLIDE [S]"
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/AbilitiesDock/SlideCard/VBox/HeaderHBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18, 1, 0.45, 1)
+theme_override_font_sizes/font_size = 9
+text = "READY"
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/AbilitiesDock/SlideCard/VBox"]
+custom_minimum_size = Vector2(0, 5)
+layout_mode = 2
+max_value = 1.0
+value = 1.0
+show_percentage = false
+
+[node name="HoundCard" type="PanelContainer" parent="MarginContainer/AbilitiesDock"]
+custom_minimum_size = Vector2(150, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer/AbilitiesDock/HoundCard"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 2
+
+[node name="HeaderHBox" type="HBoxContainer" parent="MarginContainer/AbilitiesDock/HoundCard/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="MarginContainer/AbilitiesDock/HoundCard/VBox/HeaderHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.95, 0.65, 0.15, 1)
+theme_override_font_sizes/font_size = 9
+text = "🐺 HOUND [Q]"
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/AbilitiesDock/HoundCard/VBox/HeaderHBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.45, 0.2, 1)
+theme_override_font_sizes/font_size = 9
+text = "0/10 DOGS"
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/AbilitiesDock/HoundCard/VBox"]
+custom_minimum_size = Vector2(0, 5)
+layout_mode = 2
+max_value = 10.0
+value = 0.0
+show_percentage = false
+
+[node name="TitleMenuOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DarkBackdrop" type="ColorRect" parent="TitleMenuOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.04, 0.07, 0.65)
+
+[node name="CenterContainer" type="CenterContainer" parent="TitleMenuOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TitleMenuOverlay/CenterContainer"]
+custom_minimum_size = Vector2(480, 260)
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="TitleFrame" type="Control" parent="TitleMenuOverlay/CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(460, 90)
+layout_mode = 2
+size_flags_horizontal = 4
+script = ExtResource("3_title_vis")
+
+[node name="TitleLabel" type="Label" parent="TitleMenuOverlay/CenterContainer/VBoxContainer/TitleFrame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0.95, 1, 1)
+theme_override_colors/font_shadow_color = Color(0.9, 0.15, 0.25, 0.8)
+theme_override_constants/shadow_offset_x = 4
+theme_override_constants/shadow_offset_y = 4
+theme_override_colors/font_outline_color = Color(0.02, 0.12, 0.2, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 54
+text = "LEONIDAS"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SubtitleLabel" type="Label" parent="TitleMenuOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.65, 0.15, 1)
+theme_override_font_sizes/font_size = 11
+text = "// CYBERNETIC HIGHWAY RUNNER PROTOCOL //"
+horizontal_alignment = 1
+
+[node name="ControlsPanel" type="PanelContainer" parent="TitleMenuOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_modal")
+
+[node name="Margin" type="MarginContainer" parent="TitleMenuOverlay/CenterContainer/VBoxContainer/ControlsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="TitleMenuOverlay/CenterContainer/VBoxContainer/ControlsPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="LegendLabel" type="Label" parent="TitleMenuOverlay/CenterContainer/VBoxContainer/ControlsPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "[A/D] MOVE   •   [SPACE] DASH (1s)   •   [W] JUMP (3s)   •   [S] SLIDE (1s)   •   [Q] HOUND"
+horizontal_alignment = 1
+
+[node name="WarningLabel" type="Label" parent="TitleMenuOverlay/CenterContainer/VBoxContainer/ControlsPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.35, 0.35, 1)
+theme_override_font_sizes/font_size = 10
+text = "⚠️ CAUTION: BACKTRACKING > 1000M LEADS DIRECTLY INTO THE UNDEAD HORDE"
+horizontal_alignment = 1
+
+[node name="StartButton" type="Button" parent="TitleMenuOverlay/CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(240, 42)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(0, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+text = "[ INITIATE RUN ]"
+
+[node name="StartPrompt" type="Label" parent="TitleMenuOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.65, 0.8, 1)
+theme_override_font_sizes/font_size = 10
+text = "CLICK BUTTON OR PRESS ANY KEY TO START"
+horizontal_alignment = 1
+
+[node name="GameOverOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DarkBackdrop" type="ColorRect" parent="GameOverOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.01, 0.02, 0.85)
+
+[node name="CenterContainer" type="CenterContainer" parent="GameOverOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="GameOverOverlay/CenterContainer"]
+custom_minimum_size = Vector2(440, 260)
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="GameOverTitle" type="Label" parent="GameOverOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.15, 0.25, 1)
+theme_override_colors/font_shadow_color = Color(0.4, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 3
+theme_override_font_sizes/font_size = 28
+text = "SIGNAL LOST // RUN TERMINATED"
+horizontal_alignment = 1
+
+[node name="DeathCauseLabel" type="Label" parent="GameOverOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+text = "CAUSE: HULL INTEGRITY COMPROMISED"
+horizontal_alignment = 1
+
+[node name="StatsLabel" type="Label" parent="GameOverOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "DISTANCE REACHED: 0 M  |  HOUNDS KILLED: 0 / 10"
+horizontal_alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="GameOverOverlay/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="RestartButton" type="Button" parent="GameOverOverlay/CenterContainer/VBoxContainer/HBoxContainer"]
+custom_minimum_size = Vector2(170, 40)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+text = "[ RESTART RUN (R) ]"
+
+[node name="MenuButton" type="Button" parent="GameOverOverlay/CenterContainer/VBoxContainer/HBoxContainer"]
+custom_minimum_size = Vector2(170, 40)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+text = "[ TITLE MENU (M) ]"
