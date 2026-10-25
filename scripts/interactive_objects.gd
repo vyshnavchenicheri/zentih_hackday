@@ -691,4 +691,3 @@ class NeonBooster extends Area2D:
 			get_parent().add_child(emitter)
 			emitter.global_position = global_position + Vector2(boost_width / 2.0, 0)
 			emitter.finished.connect(emitter.queue_free)
-
