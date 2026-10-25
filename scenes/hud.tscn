@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://df78k2m1n3b5v"]
 
 [ext_resource type="Script" path="res://scripts/hud_controller.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/cyber_ring_gauge.gd" id="2_gauge"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.04, 0.07, 0.1, 0.85)
@@ -13,20 +14,6 @@ corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_bg"]
-bg_color = Color(0.1, 0.15, 0.2, 0.8)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_fill"]
-bg_color = Color(0, 0.85, 0.95, 1)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
@@ -49,76 +36,67 @@ size_flags_vertical = 0
 theme_override_constants/separation = 16
 
 [node name="LeftPanel" type="PanelContainer" parent="MarginContainer/TopBar"]
-custom_minimum_size = Vector2(220, 80)
+custom_minimum_size = Vector2(250, 110)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/TopBar/LeftPanel"]
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 14
+alignment = 1
 
-[node name="Header" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer"]
+[node name="RingGauge" type="Control" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer"]
+custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
+size_flags_vertical = 4
+script = ExtResource("2_gauge")
 
-[node name="Label" type="Label" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/Header"]
+[node name="StatusVBox" type="VBoxContainer" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.6, 0.7, 0.8, 1)
-theme_override_font_sizes/font_size = 11
-text = "HULL INTEGRITY"
+alignment = 1
+theme_override_constants/separation = 5
 
-[node name="HPValue" type="Label" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/Header"]
+[node name="Header" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 1, 1)
+
+[node name="Label" type="Label" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.18, 1, 0.45, 1)
+theme_override_font_sizes/font_size = 11
+text = "HULL [HP]"
+
+[node name="HPValue" type="Label" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18, 1, 0.45, 1)
 theme_override_font_sizes/font_size = 11
 text = "100%"
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer"]
-custom_minimum_size = Vector2(0, 8)
-layout_mode = 2
-theme_override_styles/background = SubResource("StyleBoxFlat_hp_bg")
-theme_override_styles/fill = SubResource("StyleBoxFlat_hp_fill")
-value = 100.0
-show_percentage = false
-
-[node name="DashHeader" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer"]
+[node name="DashHeader" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/DashHeader"]
+[node name="Label" type="Label" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox/DashHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.9, 0.65, 0.1, 1)
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 11
-text = "DASH PIPS [SPACE]"
+text = "ENERGY [SPACE]"
 
-[node name="PipsValue" type="Label" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/DashHeader"]
+[node name="PipsValue" type="Label" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox/DashHeader"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.75, 0.2, 1)
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 11
 text = "3/3"
 
-[node name="PipsContainer" type="HBoxContainer" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer"]
-custom_minimum_size = Vector2(0, 8)
+[node name="SystemLabel" type="Label" parent="MarginContainer/TopBar/LeftPanel/HBoxContainer/StatusVBox"]
 layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="Pip1" type="ColorRect" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/PipsContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-color = Color(0.95, 0.6, 0.1, 1)
-
-[node name="Pip2" type="ColorRect" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/PipsContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-color = Color(0.95, 0.6, 0.1, 1)
-
-[node name="Pip3" type="ColorRect" parent="MarginContainer/TopBar/LeftPanel/VBoxContainer/PipsContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-color = Color(0.95, 0.6, 0.1, 1)
+theme_override_colors/font_color = Color(0.5, 0.65, 0.8, 1)
+theme_override_font_sizes/font_size = 9
+text = "GAUGE: GREEN=HP | CYAN=NRG"
 
 [node name="RightPanel" type="PanelContainer" parent="MarginContainer/TopBar"]
-custom_minimum_size = Vector2(160, 48)
+custom_minimum_size = Vector2(190, 64)
 layout_mode = 2
 size_flags_horizontal = 10
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
@@ -134,3 +112,9 @@ theme_override_font_sizes/font_size = 12
 text = "PROGRESS: 0 M"
 horizontal_alignment = 1
 
+[node name="FormLabel" type="Label" parent="MarginContainer/TopBar/RightPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.65, 0.15, 1)
+theme_override_font_sizes/font_size = 10
+text = "[HUMAN] (Q: SHIFT)"
+horizontal_alignment = 1
