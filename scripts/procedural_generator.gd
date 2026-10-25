@@ -13,6 +13,7 @@ const TIER3_CANAL_Y: float = 160.0
 
 var next_chunk_x: float = 0.0
 var active_chunks: Array[Node2D] = []
+var current_chunk_platforms: Array[Rect2] = []
 
 func _ready() -> void:
 	for i in range(render_distance_chunks):
@@ -35,13 +36,44 @@ func spawn_next_chunk() -> void:
 	add_child(chunk_root)
 	active_chunks.append(chunk_root)
 	
+	current_chunk_platforms.clear()
 	var pattern_type: int = randi() % 4
 	build_accessible_chunk(chunk_root, pattern_type)
 	
 	next_chunk_x += chunk_width
 
+func can_spawn_jump_pad_at(pos: Vector2, pad_width: float = 50.0) -> bool:
+	# Check whether any platform in the chunk sits directly above this jump pad's launch zone
+	for rect in current_chunk_platforms:
+		# If platform is vertically above the jump pad (lower Y value)
+		if rect.position.y < pos.y - 15.0:
+			# Check horizontal overlap with 25px clearance
+			var plat_left: float = rect.position.x - 25.0
+			var plat_right: float = rect.position.x + rect.size.x + 25.0
+			var pad_left: float = pos.x
+			var pad_right: float = pos.x + pad_width
+			if pad_right > plat_left and pad_left < plat_right:
+				# A ceiling platform is directly above! Do not spawn!
+				return false
+	return true
+
+func try_spawn_jump_pad(parent: Node2D, pos: Vector2, pad_width: float = 50.0) -> bool:
+	if can_spawn_jump_pad_at(pos, pad_width):
+		var pad = InteractiveObjects.JumpPad.new(pad_width, 12.0)
+		pad.position = pos
+		parent.add_child(pad)
+		return true
+	return false
+
+func create_low_overpass(parent: Node2D, pos: Vector2, span_width: float = 140.0, clearance: float = 24.0, thickness: float = 24.0) -> InteractiveObjects.LowOverpass:
+	var overpass = InteractiveObjects.LowOverpass.new(span_width, clearance, thickness)
+	overpass.position = pos
+	parent.add_child(overpass)
+	current_chunk_platforms.append(Rect2(pos.x, pos.y - clearance - thickness, span_width, thickness))
+	return overpass
+
 func build_accessible_chunk(parent: Node2D, pattern: int) -> void:
-	# 1. Base Ground (Tier 3)
+	# 1. Base Ground (Tier 3 Toxic Canal)
 	create_platform(parent, Vector2(0, TIER3_CANAL_Y), Vector2(chunk_width, 50), Color(0.08, 0.14, 0.12))
 	
 	# Sludge hazard pool on ground
@@ -52,65 +84,82 @@ func build_accessible_chunk(parent: Node2D, pattern: int) -> void:
 	
 	match pattern:
 		0:
-			# Pattern 0: Direct Jump Pad on Highway launching to High Catwalk
-			create_platform(parent, Vector2(80, TIER1_CATWALK_Y), Vector2(chunk_width - 160, 24), Color(0.12, 0.35, 0.45))
-			create_platform(parent, Vector2(0, TIER2_HIGHWAY_Y), Vector2(chunk_width - 80, 32), Color(0.2, 0.25, 0.32))
+			# Pattern 0: Highway Slide Tunnel -> Clear Jump Pad Launch -> High Catwalk
+			create_platform(parent, Vector2(0, TIER2_HIGHWAY_Y), Vector2(420, 32), Color(0.2, 0.25, 0.32))
+			create_platform(parent, Vector2(460, TIER1_CATWALK_Y), Vector2(chunk_width - 460, 24), Color(0.12, 0.35, 0.45))
 			
-			var pad = InteractiveObjects.JumpPad.new(50.0, 12.0)
-			pad.position = Vector2(220, TIER2_HIGHWAY_Y - 12)
-			parent.add_child(pad)
+			# Low industrial overhead girder (forces player to slide underneath!)
+			create_low_overpass(parent, Vector2(140, TIER2_HIGHWAY_Y), 130.0)
 			
-			var bar = InteractiveObjects.Barricade.new(24.0, 48.0)
-			bar.position = Vector2(520, TIER2_HIGHWAY_Y - 48)
-			parent.add_child(bar)
+			# Jump pad on Highway with 100% clear vertical sky above
+			try_spawn_jump_pad(parent, Vector2(340, TIER2_HIGHWAY_Y - 12))
 			
-			var enemy = InteractiveObjects.CyberEnemy.new("zombie")
-			enemy.position = Vector2(720, TIER2_HIGHWAY_Y - 18)
-			parent.add_child(enemy)
+			var zombie = InteractiveObjects.CyberEnemy.new("zombie")
+			zombie.position = Vector2(650, TIER1_CATWALK_Y - 18)
+			parent.add_child(zombie)
+			
+			var dog = InteractiveObjects.CyberEnemy.new("hound")
+			dog.position = Vector2(880, TIER1_CATWALK_Y - 12)
+			parent.add_child(dog)
 
 		1:
 			# Pattern 1: Stepped Staircase Platforms (Stairs from Tier 3 up to Tier 1)
-			create_platform(parent, Vector2(60, 80), Vector2(180, 24), Color(0.25, 0.3, 0.38))       # Step 1
-			create_platform(parent, Vector2(280, TIER2_HIGHWAY_Y), Vector2(300, 32), Color(0.2, 0.25, 0.32)) # Highway
-			create_platform(parent, Vector2(620, -70), Vector2(180, 24), Color(0.25, 0.3, 0.38))      # Step 2
+			create_platform(parent, Vector2(40, 80), Vector2(180, 24), Color(0.25, 0.3, 0.38))       # Step 1
+			create_platform(parent, Vector2(260, TIER2_HIGHWAY_Y), Vector2(300, 32), Color(0.2, 0.25, 0.32)) # Highway
+			create_platform(parent, Vector2(600, -70), Vector2(180, 24), Color(0.25, 0.3, 0.38))      # Step 2
 			create_platform(parent, Vector2(820, TIER1_CATWALK_Y), Vector2(380, 24), Color(0.12, 0.35, 0.45)) # Catwalk
 			
 			var hound = InteractiveObjects.CyberEnemy.new("hound")
-			hound.position = Vector2(940, TIER1_CATWALK_Y - 12)
+			hound.position = Vector2(380, TIER2_HIGHWAY_Y - 12)
 			parent.add_child(hound)
+			
+			var zombie = InteractiveObjects.CyberEnemy.new("zombie")
+			zombie.position = Vector2(950, TIER1_CATWALK_Y - 18)
+			parent.add_child(zombie)
 
 		2:
 			# Pattern 2: Sloped Ramp connecting Highway Tier 2 directly up to Catwalk Tier 1
-			create_platform(parent, Vector2(0, TIER2_HIGHWAY_Y), Vector2(250, 32), Color(0.2, 0.25, 0.32))
-			create_ramp(parent, Vector2(250, TIER2_HIGHWAY_Y), Vector2(600, TIER1_CATWALK_Y))
-			create_platform(parent, Vector2(600, TIER1_CATWALK_Y), Vector2(600, 24), Color(0.12, 0.35, 0.45))
+			create_platform(parent, Vector2(0, TIER2_HIGHWAY_Y), Vector2(240, 32), Color(0.2, 0.25, 0.32))
+			create_ramp(parent, Vector2(240, TIER2_HIGHWAY_Y), Vector2(560, TIER1_CATWALK_Y))
+			create_platform(parent, Vector2(560, TIER1_CATWALK_Y), Vector2(640, 24), Color(0.12, 0.35, 0.45))
 			
-			var pad_ground = InteractiveObjects.JumpPad.new(50.0, 12.0)
-			pad_ground.position = Vector2(100, TIER3_CANAL_Y - 12)
-			parent.add_child(pad_ground)
+			# Low overhead beam on the high catwalk (slide place!)
+			create_low_overpass(parent, Vector2(720, TIER1_CATWALK_Y), 140.0)
 			
-			var bar_top = InteractiveObjects.Barricade.new(24.0, 48.0)
-			bar_top.position = Vector2(820, TIER1_CATWALK_Y - 48)
-			parent.add_child(bar_top)
-
-		3:
-			# Pattern 3: Full High Catwalk + Highway with dual jump pads
-			create_platform(parent, Vector2(0, TIER1_CATWALK_Y), Vector2(chunk_width, 24), Color(0.12, 0.35, 0.45))
-			create_platform(parent, Vector2(120, TIER2_HIGHWAY_Y), Vector2(chunk_width - 240, 32), Color(0.2, 0.25, 0.32))
-			
-			var pad_highway = InteractiveObjects.JumpPad.new(50.0, 12.0)
-			pad_highway.position = Vector2(360, TIER2_HIGHWAY_Y - 12)
-			parent.add_child(pad_highway)
+			# Jump pad on open canal section after the ramp
+			try_spawn_jump_pad(parent, Vector2(50, TIER3_CANAL_Y - 12))
 			
 			var zombie = InteractiveObjects.CyberEnemy.new("zombie")
-			zombie.position = Vector2(580, TIER2_HIGHWAY_Y - 18)
+			zombie.position = Vector2(140, TIER2_HIGHWAY_Y - 18)
 			parent.add_child(zombie)
 			
-			var bar = InteractiveObjects.Barricade.new(24.0, 48.0)
-			bar.position = Vector2(780, TIER1_CATWALK_Y - 48)
-			parent.add_child(bar)
+			var hound = InteractiveObjects.CyberEnemy.new("hound")
+			hound.position = Vector2(950, TIER1_CATWALK_Y - 12)
+			parent.add_child(hound)
+
+		3:
+			# Pattern 3: Dual Highway & Catwalk with an Open Skylight Launch Gap and Slide Zone
+			create_platform(parent, Vector2(0, TIER1_CATWALK_Y), Vector2(240, 24), Color(0.12, 0.35, 0.45))
+			create_platform(parent, Vector2(480, TIER1_CATWALK_Y), Vector2(chunk_width - 480, 24), Color(0.12, 0.35, 0.45))
+			create_platform(parent, Vector2(100, TIER2_HIGHWAY_Y), Vector2(chunk_width - 200, 32), Color(0.2, 0.25, 0.32))
+			
+			# Jump pad at x: 340 launches through the open 240px skylight directly onto Catwalk Part 2!
+			try_spawn_jump_pad(parent, Vector2(340, TIER2_HIGHWAY_Y - 12))
+			
+			# Low overpass slide challenge on Highway after the launch
+			create_low_overpass(parent, Vector2(620, TIER2_HIGHWAY_Y), 150.0)
+			
+			var zombie = InteractiveObjects.CyberEnemy.new("zombie")
+			zombie.position = Vector2(850, TIER2_HIGHWAY_Y - 18)
+			parent.add_child(zombie)
+			
+			var hound = InteractiveObjects.CyberEnemy.new("hound")
+			hound.position = Vector2(760, TIER1_CATWALK_Y - 12)
+			parent.add_child(hound)
 
 func create_platform(parent: Node2D, pos: Vector2, size: Vector2, color: Color) -> StaticBody2D:
+	current_chunk_platforms.append(Rect2(pos, size))
+	
 	var body = StaticBody2D.new()
 	body.position = pos
 	
@@ -135,9 +184,15 @@ func create_platform(parent: Node2D, pos: Vector2, size: Vector2, color: Color) 
 	return body
 
 func create_ramp(parent: Node2D, start_pos: Vector2, end_pos: Vector2) -> StaticBody2D:
+	var thickness: float = 24.0
+	var min_x = min(start_pos.x, end_pos.x)
+	var max_x = max(start_pos.x, end_pos.x)
+	var min_y = min(start_pos.y, end_pos.y)
+	var max_y = max(start_pos.y, end_pos.y) + thickness
+	current_chunk_platforms.append(Rect2(min_x, min_y, max_x - min_x, max_y - min_y))
+	
 	var body = StaticBody2D.new()
 	var poly = Polygon2D.new()
-	var thickness: float = 24.0
 	
 	poly.polygon = PackedVector2Array([
 		start_pos,

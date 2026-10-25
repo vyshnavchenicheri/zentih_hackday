@@ -14,7 +14,7 @@ signal distance_updated(meters: int)
 @export var jump_force: float = -620.0        # First jump impulse
 @export var double_jump_force: float = -560.0 # Double jump impulse to easily reach top platforms
 @export var gravity: float = 1600.0
-@export var max_jumps: int = 1 # Temporarily disabled double jump (1 jump only)
+@export var max_jumps: int = 2 # Double jump enabled
 
 @export_group("Momentary Thruster Dash")
 @export var dash_speed: float = 1200.0        # High burst speed during dash
@@ -22,9 +22,15 @@ signal distance_updated(meters: int)
 @export var max_dash_pips: int = 3
 @export var dash_pip_cooldown: float = 1.2    # Time to recharge 1 pip
 
+@export_group("Slide Mechanics")
+@export var slide_speed: float = 650.0        # Initial high-speed slide
+@export var slide_duration: float = 0.44      # Slide duration
+var is_sliding: bool = false
+var slide_timer: float = 0.0
+
 # Player State
 var facing: int = 1
-var jumps_left: int = 1
+var jumps_left: int = 2
 var is_dashing: bool = false
 var dash_timer: float = 0.0
 var slash_timer: float = 0.0
@@ -37,16 +43,22 @@ var invulnerable_timer: float = 0.0
 # Node References
 @onready var visuals: Node2D = $Visuals if has_node("Visuals") else null
 @onready var slash_area: Area2D = $SlashArea if has_node("SlashArea") else null
+@onready var col_shape: CollisionShape2D = $CollisionShape2D if has_node("CollisionShape2D") else null
 
 func _ready() -> void:
 	emit_signal("dash_pips_changed", dash_pips, max_dash_pips)
 	emit_signal("hp_changed", current_hp)
 	emit_signal("jumps_changed", jumps_left, max_jumps)
 	
+	if col_shape and col_shape.shape:
+		col_shape.shape = col_shape.shape.duplicate()
+	
 	if slash_area:
 		slash_area.monitoring = false
-		slash_area.area_entered.connect(_on_slash_area_entered)
-		slash_area.body_entered.connect(_on_slash_body_entered)
+		if not slash_area.area_entered.is_connected(_on_slash_area_entered):
+			slash_area.area_entered.connect(_on_slash_area_entered)
+		if not slash_area.body_entered.is_connected(_on_slash_body_entered):
+			slash_area.body_entered.connect(_on_slash_body_entered)
 
 func _physics_process(delta: float) -> void:
 	recharge_dash_pips(delta)
@@ -59,12 +71,23 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0 # Lock vertical drop during dash
 		
 		if dash_timer <= 0.0:
-			# End momentary dash: cleanly transition back to normal run speed or stop
 			is_dashing = false
 			if slash_area:
 				slash_area.monitoring = false
 			var input_x: float = get_horizontal_input()
 			velocity.x = input_x * run_speed
+	elif is_sliding:
+		# In cyber slide
+		slide_timer -= delta
+		velocity.x = facing * lerpf(run_speed, slide_speed, slide_timer / slide_duration)
+		if not is_on_floor():
+			velocity.y += gravity * delta
+		else:
+			if velocity.y >= 0.0:
+				jumps_left = max_jumps
+		
+		if slide_timer <= 0.0:
+			end_slide()
 	else:
 		# Snappy fixed-speed running: immediate response, immediate stop
 		var input_x: float = get_horizontal_input()
@@ -78,8 +101,10 @@ func _physics_process(delta: float) -> void:
 		if not is_on_floor():
 			velocity.y += gravity * delta
 		else:
-			jumps_left = max_jumps
-			emit_signal("jumps_changed", jumps_left, max_jumps)
+			# Only reset jump when falling downward or settled on floor
+			if velocity.y >= 0.0:
+				jumps_left = max_jumps
+				emit_signal("jumps_changed", jumps_left, max_jumps)
 	
 	if slash_timer > 0.0:
 		slash_timer -= delta
@@ -87,7 +112,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	
 	# Update animation cycle
-	if abs(velocity.x) > 0.0:
+	if abs(velocity.x) > 0.0 and not is_sliding:
 		run_cycle += delta * 14.0
 	
 	if visuals:
@@ -111,22 +136,62 @@ func _unhandled_input(event: InputEvent) -> void:
 		trigger_jump()
 	elif event.is_action_pressed("dash") and not event.is_echo():
 		trigger_momentary_dash()
+	elif (event.is_action_pressed("move_down") or (event is InputEventKey and event.pressed and not event.is_echo() and (event.keycode == KEY_S or event.keycode == KEY_DOWN))):
+		trigger_slide()
 	elif event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_R:
 		get_tree().reload_current_scene()
 
 func trigger_jump() -> void:
-	if jumps_left > 0:
-		if jumps_left == max_jumps:
-			velocity.y = jump_force
-		else:
-			velocity.y = double_jump_force
+	if is_sliding:
+		end_slide()
+	
+	if is_on_floor():
+		# 1st Jump (from ground)
+		velocity.y = jump_force
+		jumps_left = max_jumps - 1
+		emit_signal("jumps_changed", jumps_left, max_jumps)
+		spawn_jump_particles()
+	elif jumps_left > 0:
+		# 2nd Jump (Mid-Air Double Jump booster!)
+		velocity.y = double_jump_force
 		jumps_left -= 1
 		emit_signal("jumps_changed", jumps_left, max_jumps)
 		spawn_jump_particles()
 
+func trigger_slide() -> void:
+	if not is_on_floor() or is_dashing or is_sliding:
+		return
+	
+	is_sliding = true
+	slide_timer = slide_duration
+	velocity.x = facing * slide_speed
+	set_crouch_collision(true)
+	spawn_slide_sparks()
+
+func end_slide() -> void:
+	if not is_sliding:
+		return
+	is_sliding = false
+	slide_timer = 0.0
+	set_crouch_collision(false)
+
+func set_crouch_collision(crouching: bool) -> void:
+	if not col_shape:
+		col_shape = $CollisionShape2D if has_node("CollisionShape2D") else null
+	if col_shape and col_shape.shape is RectangleShape2D:
+		if crouching:
+			# Drop height from 36px to 16px to slide smoothly under low overhead beams
+			col_shape.shape.size = Vector2(28, 16)
+			col_shape.position = Vector2(0, 10)
+		else:
+			col_shape.shape.size = Vector2(20, 36)
+			col_shape.position = Vector2(0, 0)
+
 func trigger_momentary_dash() -> void:
 	if is_dashing or dash_pips <= 0:
 		return
+	if is_sliding:
+		end_slide()
 	
 	dash_pips -= 1
 	emit_signal("dash_pips_changed", dash_pips, max_dash_pips)
@@ -161,7 +226,7 @@ func handle_invulnerability(delta: float) -> void:
 			visuals.modulate.a = 1.0
 
 func take_damage(amount: float, knockback_dir: float = 0.0) -> void:
-	if invulnerable_timer > 0.0 or is_dashing:
+	if invulnerable_timer > 0.0 or is_dashing or is_sliding:
 		return
 	
 	current_hp = max(0.0, current_hp - amount)
@@ -244,4 +309,20 @@ func spawn_jump_particles() -> void:
 	emitter.color = Color(0.2, 0.8, 1.0)
 	get_parent().add_child(emitter)
 	emitter.global_position = global_position + Vector2(0, 18)
+	emitter.finished.connect(emitter.queue_free)
+
+func spawn_slide_sparks() -> void:
+	var emitter = CPUParticles2D.new()
+	emitter.emitting = true
+	emitter.one_shot = true
+	emitter.explosiveness = 0.85
+	emitter.lifetime = 0.35
+	emitter.amount = 12
+	emitter.direction = Vector2(-facing, -0.4)
+	emitter.spread = 45.0
+	emitter.initial_velocity_min = 60.0
+	emitter.initial_velocity_max = 160.0
+	emitter.color = Color(1.0, 0.72, 0.2)
+	get_parent().add_child(emitter)
+	emitter.global_position = global_position + Vector2(0, 16)
 	emitter.finished.connect(emitter.queue_free)
