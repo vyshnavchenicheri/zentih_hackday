@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/procedural_generator.gd" id="2_generator"]
 [ext_resource type="PackedScene" uid="uid://c8h7l2y1q5p6r" path="res://scenes/player.tscn" id="3_player"]
 [ext_resource type="PackedScene" uid="uid://df78k2m1n3b5v" path="res://scenes/hud.tscn" id="4_hud"]
+[ext_resource type="AudioStream" path="res://audio/bgm.ogg" id="5_bgm"]
 
 [node name="Main" type="Node2D"]
 
@@ -36,7 +37,12 @@ player_node = NodePath("../Player")
 chunk_width = 1200.0
 
 [node name="Player" parent="." instance=ExtResource("3_player")]
-position = Vector2(120, -30)
+position = Vector2(160, -520)
 
 [node name="HUD" parent="." node_paths=PackedStringArray("runner") instance=ExtResource("4_hud")]
 runner = NodePath("../Player")
+
+[node name="BGMPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("5_bgm")
+autoplay = true
+bus = &"Master"

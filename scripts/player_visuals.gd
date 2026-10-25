@@ -18,13 +18,34 @@ func _draw() -> void:
 	# Apply facing flip directly via CanvasItem transform
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(facing, 1.0))
 	
+	# 1. State: DEAD
+	if parent.is_dead:
+		_draw_death()
+		return
+	
+	# 2. State: SKYFALL
+	if parent.game_state == RunnerController.GameState.SKYFALL:
+		_draw_skyfall()
+		return
+	
+	# 3. State: HERO IMPACT LANDING
+	if parent.landing_crouch_timer > 0.0:
+		_draw_hero_landing(parent.landing_crouch_timer)
+		return
+	
+	# 4. State: CYBER HOUND
 	if parent.is_shapeshifted:
 		_draw_dog(is_moving, is_in_air, is_dashing, run_cycle)
 		return
 	
+	# 5. State: SLIDE
 	if is_sliding:
 		_draw_slide()
 		return
+	
+	# Double Jump Aerial Pulse Effect
+	if is_in_air and parent.double_jump_cooldown_timer > 2.5:
+		_draw_double_jump_ring(parent.double_jump_cooldown_timer)
 	
 	# Leg oscillation
 	var leg_swing: float = sin(run_cycle) * 7.0 if is_moving and not is_in_air else 0.0
@@ -158,9 +179,149 @@ func _draw() -> void:
 		draw_line(arm_shoulder, arm_hand, Color(0.2, 0.28, 0.36), 3.5)
 		draw_line(arm_hand + Vector2(-3.0, -2), arm_hand + Vector2(4.0, 2), Color(0.0, 0.85, 0.95), 2.0)
 
+## Smooth Skyfall Animation: Streamlined diving posture, retro thrusters blazing upwards, scarf streaming vertical
+func _draw_skyfall() -> void:
+	var wind_flutter: float = sin(Time.get_ticks_msec() * 0.035) * 4.0
+	
+	# 1. Scarf streaming straight UP in airstream
+	var scarf_pts = PackedVector2Array([
+		Vector2(-3.0, -6.0),
+		Vector2(-5.0 + wind_flutter, -22.0),
+		Vector2(-2.0 + wind_flutter * 1.2, -36.0),
+		Vector2(2.0 + wind_flutter * 1.2, -36.0),
+		Vector2(2.0 + wind_flutter * 0.8, -22.0),
+		Vector2(1.0, -6.0)
+	])
+	draw_colored_polygon(scarf_pts, Color(0.95, 0.52, 0.12))
+	
+	# 2. Retro-braking Thrusters firing UPWARD
+	var thruster_pts = PackedVector2Array([
+		Vector2(-6.0, -10.0),
+		Vector2(-4.0, -28.0 - abs(wind_flutter) * 3.0),
+		Vector2(-2.0, -10.0)
+	])
+	draw_colored_polygon(thruster_pts, Color(0.0, 0.95, 1.0))
+	var core_thruster = PackedVector2Array([
+		Vector2(-5.0, -10.0),
+		Vector2(-4.0, -18.0),
+		Vector2(-3.0, -10.0)
+	])
+	draw_colored_polygon(core_thruster, Color(1.0, 1.0, 1.0))
+	
+	# 3. Streamlined Aerodynamic Diving Body
+	# Angled legs trailing behind
+	draw_line(Vector2(-3, -2), Vector2(-6, -16), Color(0.15, 0.2, 0.26), 4.0)
+	draw_line(Vector2(2, -2), Vector2(4, -18), Color(0.2, 0.28, 0.36), 4.0)
+	draw_rect(Rect2(-8, -19, 5, 4), Color(0.08, 0.1, 0.14))
+	draw_rect(Rect2(2, -21, 5, 4), Color(0.08, 0.1, 0.14))
+	
+	# Torso diving down
+	draw_rect(Rect2(-5, -6, 10, 14), Color(0.25, 0.32, 0.4))
+	draw_circle(Vector2(0, 1), 2.0, Color(0.0, 0.95, 1.0))
+	
+	# Arms tucked backwards along flanks
+	draw_line(Vector2(-5, -2), Vector2(-9, -12), Color(0.2, 0.28, 0.36), 3.0)
+	draw_line(Vector2(5, -2), Vector2(9, -12), Color(0.2, 0.28, 0.36), 3.0)
+	
+	# Head pointing downwards with cyber visor cutting through wind
+	draw_rect(Rect2(-4, 8, 8, 8), Color(0.16, 0.18, 0.22))
+	draw_rect(Rect2(-3, 13, 6, 3), Color(0.0, 0.95, 1.0))
+	draw_line(Vector2(-2, 14), Vector2(2, 14), Color(1.0, 1.0, 1.0), 1.0)
+	
+	# Air stream wind lines
+	for i in range(3):
+		var wx: float = -14.0 + i * 14.0
+		var wy: float = -20.0 + sin(Time.get_ticks_msec() * 0.02 + i) * 6.0
+		draw_line(Vector2(wx, wy), Vector2(wx, wy + 24.0), Color(0.5, 0.9, 1.0, 0.4), 1.2)
+
+## Hero Impact Landing Pose (deep 3-point crouch on ground contact)
+func _draw_hero_landing(timer: float) -> void:
+	var crouch_factor: float = clampf(timer / 0.65, 0.0, 1.0)
+	
+	# Expanding shockwave ring at feet
+	var ring_r: float = (1.0 - crouch_factor) * 36.0
+	draw_arc(Vector2(0, 16), ring_r, 0, TAU, 24, Color(0.0, 0.95, 1.0, crouch_factor * 0.8), 2.0)
+	
+	# Scarf flared out wide in shockwave
+	var scarf_pts = PackedVector2Array([
+		Vector2(-4.0, 2.0),
+		Vector2(-20.0, -6.0),
+		Vector2(-32.0, -2.0),
+		Vector2(-18.0, 6.0),
+		Vector2(-2.0, 5.0)
+	])
+	draw_colored_polygon(scarf_pts, Color(0.95, 0.52, 0.12))
+	
+	# Deep crouch bent back leg
+	draw_line(Vector2(-4, 4), Vector2(-12, 16), Color(0.16, 0.22, 0.3), 4.5)
+	draw_rect(Rect2(-14, 14, 8, 4), Color(0.08, 0.1, 0.14))
+	
+	# Front leg bent forward
+	draw_line(Vector2(4, 4), Vector2(12, 16), Color(0.2, 0.28, 0.36), 4.5)
+	draw_rect(Rect2(10, 14, 8, 4), Color(0.08, 0.1, 0.14))
+	
+	# Low Torso
+	draw_rect(Rect2(-6, -2, 12, 12), Color(0.25, 0.32, 0.4))
+	draw_circle(Vector2(1, 4), 2.0, Color(0.0, 0.95, 1.0))
+	
+	# Fist slamming ground
+	draw_line(Vector2(2, 2), Vector2(2, 16), Color(0.2, 0.28, 0.36), 3.5)
+	draw_circle(Vector2(2, 16), 2.5, Color(0.3, 0.4, 0.5))
+	
+	# Other arm back for balance
+	draw_line(Vector2(-4, 2), Vector2(-12, -4), Color(0.2, 0.28, 0.36), 3.0)
+	
+	# Head low, cyber visor focused ahead
+	draw_rect(Rect2(2, -8, 8, 7), Color(0.16, 0.18, 0.22))
+	draw_rect(Rect2(5, -6, 5, 3), Color(0.0, 0.95, 1.0))
+	draw_line(Vector2(6, -5), Vector2(9, -5), Color(1.0, 1.0, 1.0), 1.0)
+
+## Double Jump Thruster Ring & Plasma Flare
+func _draw_double_jump_ring(cooldown_timer: float) -> void:
+	var t: float = (3.0 - cooldown_timer) / 0.5 # 0.0 to 1.0
+	var r: float = t * 24.0
+	var alpha: float = clampf(1.0 - t, 0.0, 1.0)
+	draw_arc(Vector2(0, 14), r, 0, TAU, 20, Color(0.0, 1.0, 0.8, alpha), 2.5)
+	draw_arc(Vector2(0, 14), r * 0.7, 0, TAU, 16, Color(1.0, 1.0, 1.0, alpha * 0.8), 1.5)
+
+## Death / Collapse Pose
+func _draw_death() -> void:
+	# Scarf flat on ground
+	var scarf_pts = PackedVector2Array([
+		Vector2(-6.0, 14.0),
+		Vector2(-24.0, 13.0),
+		Vector2(-32.0, 15.0),
+		Vector2(-20.0, 16.0),
+		Vector2(-4.0, 15.0)
+	])
+	draw_colored_polygon(scarf_pts, Color(0.75, 0.38, 0.1))
+	
+	# Legs collapsed
+	draw_line(Vector2(2, 12), Vector2(16, 14), Color(0.16, 0.22, 0.28), 4.0)
+	draw_line(Vector2(-2, 12), Vector2(12, 16), Color(0.12, 0.16, 0.22), 3.5)
+	draw_rect(Rect2(14, 13, 7, 3), Color(0.08, 0.1, 0.14))
+	
+	# Torso fallen backwards
+	var torso_pts = PackedVector2Array([
+		Vector2(-10, 8),
+		Vector2(2, 7),
+		Vector2(4, 15),
+		Vector2(-8, 15)
+	])
+	draw_colored_polygon(torso_pts, Color(0.2, 0.24, 0.3))
+	
+	# Cyber core flickering / dying out
+	var flicker = sin(Time.get_ticks_msec() * 0.04) > 0.0
+	var core_col = Color(1.0, 0.2, 0.2, 0.8) if flicker else Color(0.1, 0.3, 0.4, 0.5)
+	draw_circle(Vector2(-2, 11), 1.8, core_col)
+	
+	# Head resting on ground
+	draw_rect(Rect2(-18, 9, 8, 6), Color(0.14, 0.16, 0.2))
+	# Visor glitch line
+	draw_line(Vector2(-16, 11), Vector2(-12, 11), Color(1.0, 0.2, 0.2, 0.7 if flicker else 0.2), 1.2)
+
 func _draw_slide() -> void:
 	# Low clearance slide posture (fits easily under 24px overhead beams)
-	# 1. Scarf streaming straight back
 	var scarf_pts = PackedVector2Array([
 		Vector2(-4.0, 2.0),
 		Vector2(-16.0, 0.0),
@@ -170,7 +331,7 @@ func _draw_slide() -> void:
 	])
 	draw_colored_polygon(scarf_pts, Color(0.95, 0.52, 0.12))
 	
-	# 2. Back Thruster puffing horizontal sparks
+	# Back Thruster puffing horizontal sparks
 	draw_rect(Rect2(-10, 2, 4, 6), Color(0.22, 0.26, 0.32))
 	var flame_pts = PackedVector2Array([
 		Vector2(-10, 3),
@@ -179,11 +340,11 @@ func _draw_slide() -> void:
 	])
 	draw_colored_polygon(flame_pts, Color(0.0, 0.95, 1.0))
 	
-	# 3. Bent Back Leg skimming ground
+	# Bent Back Leg skimming ground
 	draw_line(Vector2(-3.0, 6.0), Vector2(-11.0, 14.0), Color(0.16, 0.22, 0.3), 4.0)
 	draw_rect(Rect2(-14, 12, 6, 4), Color(0.08, 0.1, 0.14))
 	
-	# 4. Low Angled Torso & Armored Vest
+	# Low Angled Torso & Armored Vest
 	var torso_pts = PackedVector2Array([
 		Vector2(-6.0, 1.0),
 		Vector2(5.0, 0.0),
@@ -191,25 +352,20 @@ func _draw_slide() -> void:
 		Vector2(-4.0, 11.0)
 	])
 	draw_colored_polygon(torso_pts, Color(0.25, 0.32, 0.4))
-	# Glowing chest core
 	draw_circle(Vector2(2.0, 5.0), 1.8, Color(0.0, 0.95, 1.0))
 	
-	# 5. Outstretched Front Leg grinding on floor
+	# Outstretched Front Leg grinding on floor
 	draw_line(Vector2(4.0, 7.0), Vector2(17.0, 14.0), Color(0.2, 0.28, 0.36), 4.5)
-	# Metal boot heel grinding
 	draw_rect(Rect2(15, 12, 8, 4), Color(0.08, 0.1, 0.14))
-	# Metal knee plate
 	draw_circle(Vector2(10.0, 10.0), 2.2, Color(0.35, 0.45, 0.55))
 	
-	# 6. Low Head & Cyber Visor (tucked low)
+	# Low Head & Cyber Visor (tucked low)
 	draw_rect(Rect2(1, -5, 8, 7), Color(0.16, 0.18, 0.22))
 	draw_rect(Rect2(1, -7, 7, 3), Color(0.18, 0.14, 0.12))
-	# Visor line
 	draw_rect(Rect2(5, -4, 5, 2), Color(0.0, 0.95, 1.0))
 	
-	# 7. Ground Bracing Arm
+	# Ground Bracing Arm
 	draw_line(Vector2(0.0, 4.0), Vector2(-6.0, 14.0), Color(0.22, 0.28, 0.35), 3.0)
-	# Friction spark highlight under boot heel
 	draw_line(Vector2(14, 16), Vector2(22, 16), Color(1.0, 0.8, 0.2), 2.0)
 
 func _draw_dog(is_moving: bool, is_in_air: bool, is_dashing: bool, run_cycle: float) -> void:
@@ -298,11 +454,9 @@ func _draw_dog(is_moving: bool, is_in_air: bool, is_dashing: bool, run_cycle: fl
 	
 	# 8. CYBER HOUND HEAD, EARS, AND GLOWING VISOR
 	var head_pos = Vector2(12.0, 2.0 + spine_bob)
-	# Cranium & Muzzle
 	draw_rect(Rect2(head_pos.x - 3, head_pos.y - 5, 8, 8), Color(0.16, 0.18, 0.22))
 	draw_rect(Rect2(head_pos.x + 5, head_pos.y - 2, 7, 5), Color(0.22, 0.28, 0.35))
 	
-	# Spiky cyber hair / crest
 	draw_rect(Rect2(head_pos.x - 4, head_pos.y - 8, 7, 4), Color(0.18, 0.14, 0.12))
 	var crest = PackedVector2Array([
 		Vector2(head_pos.x - 2, head_pos.y - 8),
@@ -329,7 +483,6 @@ func _draw_dog(is_moving: bool, is_in_air: bool, is_dashing: bool, run_cycle: fl
 	# 9. ENERGIZED RAZOR FANGS & ZOMBIE SHREDDER JAWS
 	var jaw_y = head_pos.y + 3.0
 	draw_rect(Rect2(head_pos.x + 6, jaw_y, 6, 2), Color(0.12, 0.15, 0.2))
-	# Glowing cyan energy fangs
 	draw_line(Vector2(head_pos.x + 8, jaw_y), Vector2(head_pos.x + 9, jaw_y + 3), Color(0.0, 0.95, 1.0), 1.5)
 	draw_line(Vector2(head_pos.x + 11, jaw_y), Vector2(head_pos.x + 12, jaw_y + 3), Color(0.0, 0.95, 1.0), 1.5)
 	
@@ -340,4 +493,3 @@ func _draw_dog(is_moving: bool, is_in_air: bool, is_dashing: bool, run_cycle: fl
 			var ax = head_pos.x + 7.0 + k * 4.0
 			var ay = jaw_y + sin(aura_time + k) * 3.0
 			draw_line(Vector2(ax, ay), Vector2(ax + 3, ay - 2), Color(0.0, 0.95, 1.0, 0.8), 1.5)
-

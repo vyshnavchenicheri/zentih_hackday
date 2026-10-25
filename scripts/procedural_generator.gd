@@ -25,8 +25,53 @@ var chunks_at_top: int = 0
 var recent_highway_patterns: Array[int] = []
 
 func _ready() -> void:
+	build_backward_runway()
 	for i in range(render_distance_chunks):
 		spawn_next_chunk()
+
+func build_backward_runway() -> void:
+	var runway_root = Node2D.new()
+	runway_root.name = "BackwardRunway_1000M"
+	runway_root.position.x = 0.0
+	add_child(runway_root)
+	
+	var plat_col = get_district_platform_color()
+	# Platforms span from X = -12000.0 to 0.0 (1200 meters backwards)
+	# High deck at TIER2_HIGHWAY_Y (0.0)
+	create_platform(runway_root, Vector2(-12000.0, TIER2_HIGHWAY_Y), Vector2(12000.0, 32.0), plat_col)
+	# Lower canal bed at TIER3_CANAL_Y (160.0)
+	create_platform(runway_root, Vector2(-12000.0, TIER3_CANAL_Y), Vector2(12000.0, 50.0), Color(0.08, 0.14, 0.12))
+	
+	# Milestone markers every 200M backwards (2000 units)
+	for m in range(200, 1201, 200):
+		var marker_x = -float(m) * 10.0
+		var marker = MilestoneSign.new(m)
+		marker.position = Vector2(marker_x, TIER2_HIGHWAY_Y - 26.0)
+		runway_root.add_child(marker)
+	
+	# Warning barricades marking entry into the quarantined Horde Territory (-850M to -950M)
+	spawn_barricade(runway_root, Vector2(-8600.0, TIER2_HIGHWAY_Y - 44.0))
+	spawn_barricade(runway_root, Vector2(-9200.0, TIER2_HIGHWAY_Y - 44.0))
+	spawn_hound(runway_root, Vector2(-9400.0, TIER2_HIGHWAY_Y - 11.0), 140.0)
+	
+	# THE UNDEAD HORDE at 1000M+ backwards (X = -9800 to -12000):
+	# Dense swarm of aggressive zombies & feral hounds charging the player in real combat!
+	var horde_starts = [-9800.0, -10000.0, -10200.0, -10400.0, -10600.0, -10800.0, -11000.0, -11200.0, -11400.0, -11600.0, -11800.0]
+	for hx in horde_starts:
+		spawn_zombie(runway_root, Vector2(hx - 25.0, TIER2_HIGHWAY_Y - 18.0), 100.0)
+		spawn_zombie(runway_root, Vector2(hx + 35.0, TIER2_HIGHWAY_Y - 18.0), 100.0)
+		spawn_hound(runway_root, Vector2(hx, TIER2_HIGHWAY_Y - 11.0), 180.0, "mastiff")
+
+func cull_old_chunks() -> void:
+	if not player_node:
+		return
+	# Strictly preserve platforms for 1000M backwards: only cull if more than 12,000 units behind player
+	var cull_x: float = min(player_node.global_position.x - 12000.0, -13000.0)
+	for i in range(active_chunks.size() - 1, -1, -1):
+		var chunk = active_chunks[i]
+		if is_instance_valid(chunk) and chunk.position.x < cull_x:
+			chunk.queue_free()
+			active_chunks.remove_at(i)
 
 func _process(_delta: float) -> void:
 	if not player_node:
@@ -275,12 +320,13 @@ func build_intro_chunk(parent: Node2D) -> void:
 	create_platform(parent, Vector2(0, TIER3_CANAL_Y), Vector2(chunk_width, 50), Color(0.08, 0.14, 0.12))
 	create_platform(parent, Vector2(0, TIER2_HIGHWAY_Y), Vector2(chunk_width, 32), plat_col)
 	
-	spawn_zombie(parent, Vector2(260, TIER2_HIGHWAY_Y - 18))
-	spawn_shard_row(parent, 380, TIER2_HIGHWAY_Y - 24, 3)
-	spawn_enemy_squad(parent, 560, TIER2_HIGHWAY_Y, "duo")
+	# Safe Starting Landing Area: Clear space from X=0 to 320 for dramatic skyfall impact
+	spawn_shard_row(parent, 340, TIER2_HIGHWAY_Y - 24, 3)
+	spawn_zombie(parent, Vector2(520, TIER2_HIGHWAY_Y - 18), 60.0)
+	spawn_enemy_squad(parent, 720, TIER2_HIGHWAY_Y, "duo")
 	
-	create_low_overpass(parent, Vector2(740, TIER2_HIGHWAY_Y), 130.0, 28.0)
-	spawn_hound(parent, Vector2(980, TIER2_HIGHWAY_Y - 11), 120.0)
+	create_low_overpass(parent, Vector2(880, TIER2_HIGHWAY_Y), 130.0, 28.0)
+	spawn_hound(parent, Vector2(1060, TIER2_HIGHWAY_Y - 11), 120.0)
 
 ## Archetype 1: "The Undead Swarm Highway" (High-density horde combat)
 func build_highway_swarm_chunk(parent: Node2D) -> void:
@@ -554,19 +600,6 @@ func create_ramp(parent: Node2D, start_pos: Vector2, end_pos: Vector2) -> Static
 	parent.add_child(body)
 	return body
 
-func cull_old_chunks() -> void:
-	if not player_node:
-		return
-	var cull_threshold_x: float = player_node.global_position.x - (chunk_width * cull_distance_chunks)
-	
-	var remaining: Array[Node2D] = []
-	for chunk in active_chunks:
-		if chunk.position.x < cull_threshold_x:
-			chunk.queue_free()
-		else:
-			remaining.append(chunk)
-	active_chunks = remaining
-
 # Inner class for visually rich vertical blast walls with neon grip grooves
 class WallVisual extends Node2D:
 	var wall_width: float
@@ -608,3 +641,22 @@ class DoorwayLintelVisual extends Node2D:
 		draw_line(Vector2(6, 2), Vector2(12, lintel_height / 2.0), Color(0.0, 0.9, 1.0, 0.9), 2.0)
 		draw_line(Vector2(12, lintel_height / 2.0), Vector2(6, lintel_height - 2), Color(0.0, 0.9, 1.0, 0.9), 2.0)
 		draw_circle(Vector2(lintel_width - 6, lintel_height / 2.0), 2.5, Color(0.1, 1.0, 0.4, 0.95))
+
+# Visual signpost for backward milestone markers
+class MilestoneSign extends Node2D:
+	var meters: int
+	
+	func _init(m: int) -> void:
+		meters = m
+	
+	func _draw() -> void:
+		# Post
+		draw_line(Vector2(0, 0), Vector2(0, 26), Color(0.2, 0.26, 0.35), 4.0)
+		# Holographic / Cyber Signboard
+		var sign_col = Color(0.8, 0.15, 0.15) if meters >= 1000 else Color(0.95, 0.55, 0.1)
+		draw_rect(Rect2(-24, -18, 48, 18), Color(0.08, 0.12, 0.16, 0.9))
+		draw_rect(Rect2(-24, -18, 48, 18), sign_col, false, 1.5)
+		# Flashing beacon at top
+		var beacon_col = Color(1.0, 0.2, 0.2) if meters >= 1000 else Color(1.0, 0.8, 0.2)
+		draw_circle(Vector2(0, -22), 3.0, beacon_col)
+

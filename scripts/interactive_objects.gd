@@ -164,6 +164,7 @@ class CyberEnemy extends Area2D:
 	var breed: String = "doberman" # "doberman", "rottweiler", "shepherd", "mastiff"
 	var facing: int = -1
 	var anim_time: float = 0.0
+	var turn_cooldown_timer: float = 0.0
 	
 	func _init(type: String = "zombie", outfit_id: int = -1, dog_breed: String = "") -> void:
 		enemy_type = type
@@ -196,21 +197,45 @@ class CyberEnemy extends Area2D:
 	
 	func _physics_process(delta: float) -> void:
 		anim_time += delta
+		if turn_cooldown_timer > 0.0:
+			turn_cooldown_timer -= delta
 		
 		# Look for approaching runner on same vertical tier to charge/aggro
 		var current_speed = move_speed
 		var player = get_tree().get_first_node_in_group("player")
-		if player:
+		if player and int(player.get("game_state")) == 2: # Only aggro when game is actively PLAYING
 			var dx = player.global_position.x - global_position.x
 			var dy = abs(player.global_position.y - global_position.y)
-			# If player is in front (approaching from left within 360px) and on same height level
-			if dx < 0.0 and dx > -380.0 and dy < 60.0:
-				facing = -1 # Face incoming player
+			if dy < 60.0 and abs(dx) < 380.0:
+				# Prevent rapid 60fps flipping loop! Only turn if outside deadzone and cooldown expired
+				if abs(dx) > 24.0 and turn_cooldown_timer <= 0.0:
+					var target_facing = -1 if dx < 0.0 else 1
+					if target_facing != facing:
+						facing = target_facing
+						turn_cooldown_timer = 0.45 # Enforce anti-jitter cooldown
 				current_speed = move_speed * (1.7 if enemy_type == "hound" else 1.25)
 		
 		global_position.x += facing * current_speed * delta
-		if abs(global_position.x - start_x) > patrol_range:
-			facing = -facing
+		
+		# Stable patrol bounds (explicit directional turning with cooldown)
+		if global_position.x < start_x - patrol_range and facing < 0 and turn_cooldown_timer <= 0.0:
+			facing = 1
+			turn_cooldown_timer = 0.45
+		elif global_position.x > start_x + patrol_range and facing > 0 and turn_cooldown_timer <= 0.0:
+			facing = -1
+			turn_cooldown_timer = 0.45
+		
+		# Smooth slope and uneven floor snapping: follow slopes up and down!
+		var space_state = get_world_2d().direct_space_state
+		if space_state:
+			var ray_from = global_position + Vector2(0, -10.0)
+			var ray_to = global_position + Vector2(0, 45.0)
+			var query = PhysicsRayQueryParameters2D.create(ray_from, ray_to, 1) # Layer 1 (Environment)
+			var hit = space_state.intersect_ray(query)
+			if not hit.is_empty():
+				var foot_offset = 18.0 if enemy_type == "zombie" else 11.0
+				global_position.y = hit.position.y - foot_offset
+		
 		queue_redraw()
 	
 	func _draw() -> void:
@@ -521,15 +546,28 @@ class CyberEnemy extends Area2D:
 	
 	func _on_body_entered(body: Node2D) -> void:
 		if body is RunnerController:
+			# Complete invulnerability during SKYFALL and TITLE_MENU!
+			if int(body.get("game_state")) != 2:
+				return
+			
 			if body.is_dashing or body.slash_timer > 0.0 or body.is_sliding or (body.get("is_shapeshifted") == true):
 				die_cleaved()
 				if body.is_dashing:
 					body.refund_dash_pip()
 			else:
-				var dmg = 8.0 if enemy_type == "hound" else 12.0
+				# Damage scales gradually as distance increases
+				var dist_m = max(0, int(body.global_position.x / 10.0))
+				var scaling = 1.0 + (float(dist_m) / 320.0)
+				var base_dmg = 8.0 if enemy_type == "hound" else 12.0
+				var dmg = base_dmg * scaling
 				body.take_damage(dmg, -facing)
 	
 	func die_cleaved() -> void:
+		if enemy_type == "hound":
+			var player = get_tree().get_first_node_in_group("player")
+			if player and player.has_method("register_dog_kill"):
+				player.register_dog_kill()
+		
 		var emitter = CPUParticles2D.new()
 		emitter.emitting = true
 		emitter.one_shot = true
