@@ -37,6 +37,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
@@ -116,79 +117,20 @@ layout_mode = 2
 size_flags_horizontal = 3
 color = Color(0.95, 0.6, 0.1, 1)
 
-[node name="CenterPanel" type="PanelContainer" parent="MarginContainer/TopBar"]
-custom_minimum_size = Vector2(240, 80)
-layout_mode = 2
-size_flags_horizontal = 6
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
-
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/TopBar/CenterPanel"]
-layout_mode = 2
-alignment = 1
-
-[node name="Title" type="Label" parent="MarginContainer/TopBar/CenterPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.85, 0.95, 1)
-theme_override_font_sizes/font_size = 10
-text = "VELOCITY MONITOR"
-horizontal_alignment = 1
-
-[node name="SpeedValue" type="Label" parent="MarginContainer/TopBar/CenterPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
-text = "0"
-horizontal_alignment = 1
-
-[node name="StatusBadge" type="Label" parent="MarginContainer/TopBar/CenterPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
-theme_override_font_sizes/font_size = 10
-text = "IDLE"
-horizontal_alignment = 1
-
-[node name="JumpStatus" type="Label" parent="MarginContainer/TopBar/CenterPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.75, 0.2, 1)
-theme_override_font_sizes/font_size = 10
-text = "JUMP: READY (2/2)"
-horizontal_alignment = 1
-
 [node name="RightPanel" type="PanelContainer" parent="MarginContainer/TopBar"]
-custom_minimum_size = Vector2(220, 80)
+custom_minimum_size = Vector2(160, 48)
 layout_mode = 2
+size_flags_horizontal = 10
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/TopBar/RightPanel"]
 layout_mode = 2
 alignment = 1
 
-[node name="ZoneLabel" type="Label" parent="MarginContainer/TopBar/RightPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.2, 1, 0.4, 1)
-theme_override_font_sizes/font_size = 11
-text = "TIER 2: HIGHWAY DECK"
-horizontal_alignment = 2
-
 [node name="DistanceLabel" type="Label" parent="MarginContainer/TopBar/RightPanel/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.8, 0.9, 1)
-theme_override_font_sizes/font_size = 11
-text = "PROGRESS: 0 M"
-horizontal_alignment = 2
-
-[node name="UpgradesLabel" type="Label" parent="MarginContainer/TopBar/RightPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.85, 0.95, 1)
-theme_override_font_sizes/font_size = 9
-text = "BURST DASH | PLASMA BLADE | 2X JUMP"
-horizontal_alignment = 2
-
-[node name="BottomHints" type="Label" parent="MarginContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-size_flags_vertical = 8
-theme_override_colors/font_color = Color(0.7, 0.8, 0.9, 0.7)
+theme_override_colors/font_color = Color(0.7, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 12
-text = "[A / D] Crisp Run   •   [W] Jump & Double Jump   •   [Jump Pads] Launch to High Tier   •   [SPACE] Momentary Dash Burst"
+text = "PROGRESS: 0 M"
 horizontal_alignment = 1
+

@@ -14,7 +14,7 @@ signal distance_updated(meters: int)
 @export var jump_force: float = -620.0        # First jump impulse
 @export var double_jump_force: float = -560.0 # Double jump impulse to easily reach top platforms
 @export var gravity: float = 1600.0
-@export var max_jumps: int = 2
+@export var max_jumps: int = 1 # Temporarily disabled double jump (1 jump only)
 
 @export_group("Momentary Thruster Dash")
 @export var dash_speed: float = 1200.0        # High burst speed during dash
@@ -24,7 +24,7 @@ signal distance_updated(meters: int)
 
 # Player State
 var facing: int = 1
-var jumps_left: int = 2
+var jumps_left: int = 1
 var is_dashing: bool = false
 var dash_timer: float = 0.0
 var slash_timer: float = 0.0
@@ -97,21 +97,22 @@ func _physics_process(delta: float) -> void:
 	check_zone_tier()
 
 func get_horizontal_input() -> float:
-	var x: float = 0.0
-	if Input.is_action_pressed("move_right") or Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+	var x: float = Input.get_axis("move_left", "move_right")
+	if x != 0.0:
+		return sign(x)
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		x += 1.0
-	if Input.is_action_pressed("move_left") or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 		x -= 1.0
-	return x
+	return clampf(x, -1.0, 1.0)
 
-func _input(event: InputEvent) -> void:
-	# Jump & Double Jump
-	if event.is_action_just_pressed("jump") or (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_W or event.keycode == KEY_UP)):
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("jump") and not event.is_echo():
 		trigger_jump()
-	
-	# Momentary Dash
-	if event.is_action_just_pressed("dash") or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE):
+	elif event.is_action_pressed("dash") and not event.is_echo():
 		trigger_momentary_dash()
+	elif event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_R:
+		get_tree().reload_current_scene()
 
 func trigger_jump() -> void:
 	if jumps_left > 0:
