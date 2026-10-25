@@ -7,59 +7,203 @@ func _draw() -> void:
 	if not parent:
 		return
 	
-	var facing: int = parent.facing
+	var facing: float = float(parent.facing)
 	var is_dashing: bool = parent.is_dashing
+	var is_sliding: bool = parent.is_sliding
+	var is_moving: bool = abs(parent.velocity.x) > 0.1
+	var is_in_air: bool = not parent.is_on_floor()
 	var slashing: bool = parent.slash_timer > 0.0 or is_dashing
-	var leg_bob: float = sin(parent.run_cycle) * 4.0 if abs(parent.velocity.x) > 0.0 else 0.0
+	var run_cycle: float = parent.run_cycle
 	
-	# 1. Scavenger billowed orange cape/scarf
-	var scarf_x: float = -14.0 * facing
+	# Apply facing flip directly via CanvasItem transform
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(facing, 1.0))
+	
+	if is_sliding:
+		_draw_slide()
+		return
+	
+	# Leg oscillation
+	var leg_swing: float = sin(run_cycle) * 7.0 if is_moving and not is_in_air else 0.0
+	var torso_bob: float = abs(sin(run_cycle * 2.0)) * 2.0 if is_moving and not is_in_air else 0.0
+	if is_in_air:
+		torso_bob = -2.0
+	
+	# =========================================================
+	# 1. FLOWING SCAVENGER DUSTER / SCARF (Back layer)
+	# =========================================================
+	var scarf_wind: float = sin(run_cycle * 1.6) * 3.0 if is_moving else sin(Time.get_ticks_msec() * 0.005) * 2.0
 	var scarf_pts = PackedVector2Array([
-		Vector2(0, -6),
-		Vector2(scarf_x, -4 + leg_bob * 0.4),
-		Vector2(scarf_x * 1.4, 4 + leg_bob * 0.6),
-		Vector2(0, 4)
+		Vector2(-2.0, -12.0 + torso_bob),
+		Vector2(-10.0, -9.0 + torso_bob + scarf_wind * 0.5),
+		Vector2(-20.0, -4.0 + torso_bob + scarf_wind),
+		Vector2(-14.0, 1.0 + torso_bob + scarf_wind * 0.8),
+		Vector2(-1.0, -6.0 + torso_bob)
 	])
-	draw_colored_polygon(scarf_pts, Color(0.95, 0.55, 0.1))
+	draw_colored_polygon(scarf_pts, Color(0.95, 0.52, 0.12))
+	draw_polyline(scarf_pts, Color(0.8, 0.38, 0.08), 1.2)
 	
-	# 2. Cyber Scavenger Armor Torso
-	draw_rect(Rect2(-8, -16, 16, 22), Color(0.08, 0.12, 0.18))
+	# =========================================================
+	# 2. BACK THRUSTER & DUST / EXHAUST FLAME
+	# =========================================================
+	var thruster_pos = Vector2(-7.0, -8.0 + torso_bob)
+	draw_rect(Rect2(thruster_pos.x - 2, thruster_pos.y - 4, 3, 8), Color(0.22, 0.26, 0.32))
+	draw_rect(Rect2(thruster_pos.x - 3, thruster_pos.y - 2, 1, 4), Color(0.12, 0.15, 0.2))
 	
-	# 3. Scavenger Visor (Glowing Neon Cyan)
-	var visor_x: float = 3.0 if facing == 1 else -9.0
-	draw_rect(Rect2(visor_x, -14, 7, 4), Color(0.0, 0.95, 1.0))
-	
-	# 4. Cybernetic Running Legs
-	var leg_left_y: float = 6.0 + leg_bob
-	var leg_right_y: float = 6.0 - leg_bob
-	draw_rect(Rect2(-6, leg_left_y, 4, 10), Color(0.2, 0.6, 0.85))
-	draw_rect(Rect2(2, leg_right_y, 4, 10), Color(0.2, 0.6, 0.85))
-	
-	# 5. Jet Thruster on Back
-	var thruster_x: float = -8.0 if facing == 1 else 6.0
-	var flame_color: Color = Color(0.0, 0.95, 1.0) if is_dashing else Color(0.95, 0.6, 0.1)
-	draw_rect(Rect2(thruster_x, -8, 3, 6), Color(0.3, 0.35, 0.4))
-	
-	# Thruster exhaust flame
-	if abs(parent.velocity.x) > 0.0 or is_dashing:
-		var flame_len: float = (18.0 if is_dashing else 8.0) * -facing
+	if is_moving or is_dashing or is_in_air:
+		var flame_len: float = -(22.0 if is_dashing else (11.0 + abs(sin(run_cycle * 3.0)) * 4.0))
+		var flame_w: float = 4.0 if is_dashing else 2.5
 		var flame_pts = PackedVector2Array([
-			Vector2(thruster_x, -7),
-			Vector2(thruster_x + flame_len, -5),
-			Vector2(thruster_x, -3)
+			Vector2(thruster_pos.x, thruster_pos.y - flame_w),
+			Vector2(thruster_pos.x + flame_len, thruster_pos.y),
+			Vector2(thruster_pos.x, thruster_pos.y + flame_w)
 		])
-		draw_colored_polygon(flame_pts, flame_color)
-	
-	# 6. Glowing Crescent Plasma Machete Blade
-	if slashing:
-		var blade_origin = Vector2(facing * 6.0, -4.0)
-		var blade_tip = Vector2(facing * 34.0, -4.0)
-		# Plasma core line
-		draw_line(blade_origin, blade_tip, Color(0.0, 0.95, 1.0), 3.5)
-		draw_line(blade_origin, blade_tip, Color(1.0, 1.0, 1.0), 1.5)
+		var flame_col = Color(0.0, 0.95, 1.0) if is_dashing else Color(0.98, 0.65, 0.15)
+		draw_colored_polygon(flame_pts, flame_col)
 		
-		# Crescent shockwave arc
-		var arc_center = Vector2(facing * 20.0, -4.0)
-		var start_angle: float = -0.35 * PI if facing == 1 else 0.65 * PI
-		var end_angle: float = 0.35 * PI if facing == 1 else 1.35 * PI
-		draw_arc(arc_center, 24.0, start_angle, end_angle, 12, Color(0.0, 0.95, 1.0, 0.8), 2.5)
+		var core_pts = PackedVector2Array([
+			Vector2(thruster_pos.x, thruster_pos.y - flame_w * 0.5),
+			Vector2(thruster_pos.x + flame_len * 0.55, thruster_pos.y),
+			Vector2(thruster_pos.x, thruster_pos.y + flame_w * 0.5)
+		])
+		draw_colored_polygon(core_pts, Color(1.0, 1.0, 1.0, 0.9))
+
+	# =========================================================
+	# 3. BACK LEG
+	# =========================================================
+	var back_leg_offset: float = -leg_swing if not is_in_air else -4.0
+	var back_foot_pos = Vector2(-2.0 + back_leg_offset, 14.0)
+	draw_line(Vector2(-2.0, 2.0 + torso_bob), back_foot_pos + Vector2(0, -6), Color(0.15, 0.2, 0.26), 4.0)
+	draw_line(back_foot_pos + Vector2(0, -6), back_foot_pos, Color(0.12, 0.16, 0.22), 3.5)
+	draw_rect(Rect2(back_foot_pos.x - 2, back_foot_pos.y - 2, 7, 4), Color(0.08, 0.1, 0.14))
+
+	# =========================================================
+	# 4. TORSO & ARMORED VEST
+	# =========================================================
+	var torso_pos = Vector2(0, -8.0 + torso_bob)
+	draw_rect(Rect2(torso_pos.x - 6, torso_pos.y - 6, 12, 16), Color(0.14, 0.18, 0.24))
+	
+	var armor_pts = PackedVector2Array([
+		Vector2(torso_pos.x - 5, torso_pos.y - 5),
+		Vector2(torso_pos.x + 5, torso_pos.y - 5),
+		Vector2(torso_pos.x + 4, torso_pos.y + 6),
+		Vector2(torso_pos.x - 4, torso_pos.y + 6)
+	])
+	draw_colored_polygon(armor_pts, Color(0.25, 0.32, 0.4))
+	
+	# Glowing Cyan Fusion Core on Chest
+	draw_circle(Vector2(torso_pos.x + 1.0, torso_pos.y), 2.2, Color(0.0, 0.95, 1.0))
+	draw_circle(Vector2(torso_pos.x + 1.0, torso_pos.y), 1.0, Color(1.0, 1.0, 1.0))
+	
+	# Ammo/gear pouches on belt
+	draw_rect(Rect2(torso_pos.x - 6, torso_pos.y + 7, 12, 3), Color(0.18, 0.14, 0.1))
+	draw_rect(Rect2(torso_pos.x - 4, torso_pos.y + 7, 3, 3), Color(0.6, 0.45, 0.2))
+	draw_rect(Rect2(torso_pos.x + 1, torso_pos.y + 7, 3, 3), Color(0.6, 0.45, 0.2))
+
+	# =========================================================
+	# 5. FRONT LEG
+	# =========================================================
+	var front_leg_offset: float = leg_swing if not is_in_air else 4.0
+	var front_foot_pos = Vector2(2.0 + front_leg_offset, 14.0)
+	draw_line(Vector2(2.0, 2.0 + torso_bob), front_foot_pos + Vector2(0, -6), Color(0.2, 0.28, 0.36), 4.5)
+	draw_circle(front_foot_pos + Vector2(-1.0, -6), 2.5, Color(0.35, 0.45, 0.55))
+	draw_line(front_foot_pos + Vector2(0, -6), front_foot_pos, Color(0.16, 0.22, 0.3), 4.0)
+	draw_rect(Rect2(front_foot_pos.x - 2, front_foot_pos.y - 2, 8, 4), Color(0.08, 0.1, 0.14))
+
+	# =========================================================
+	# 6. HEAD, HELMET / HAIR & CYBER VISOR
+	# =========================================================
+	var head_pos = Vector2(1.0, -18.0 + torso_bob)
+	draw_rect(Rect2(head_pos.x - 5, head_pos.y - 4, 10, 8), Color(0.16, 0.18, 0.22))
+	
+	draw_rect(Rect2(head_pos.x - 5, head_pos.y - 7, 9, 4), Color(0.18, 0.14, 0.12))
+	var hair_spike = PackedVector2Array([
+		Vector2(head_pos.x - 3, head_pos.y - 7),
+		Vector2(head_pos.x - 9, head_pos.y - 5),
+		Vector2(head_pos.x - 4, head_pos.y - 2)
+	])
+	draw_colored_polygon(hair_spike, Color(0.18, 0.14, 0.12))
+	
+	# Visor frame & Glowing Cyan Cyber-Optic Visor
+	var visor_origin = Vector2(head_pos.x + 1.0, head_pos.y - 3)
+	draw_rect(Rect2(visor_origin.x - 1, visor_origin.y - 1, 6, 4), Color(0.08, 0.1, 0.14))
+	draw_rect(Rect2(visor_origin.x, visor_origin.y, 4, 2), Color(0.0, 0.95, 1.0))
+	draw_line(visor_origin + Vector2(1, 1), visor_origin + Vector2(4, 1), Color(1.0, 1.0, 1.0), 1.0)
+
+	# =========================================================
+	# 7. CYBERNETIC ARM & PLASMA BLADE
+	# =========================================================
+	var arm_shoulder = Vector2(2.0, -9.0 + torso_bob)
+	draw_circle(arm_shoulder, 3.2, Color(0.3, 0.38, 0.48))
+	
+	if slashing:
+		var arm_hand = Vector2(arm_shoulder.x + 16.0, arm_shoulder.y + 2.0)
+		draw_line(arm_shoulder, arm_hand, Color(0.2, 0.28, 0.36), 4.0)
+		
+		var blade_tip = Vector2(arm_hand.x + 28.0, arm_hand.y - 2.0)
+		draw_line(arm_hand, blade_tip, Color(0.0, 0.9, 1.0, 0.6), 6.0)
+		draw_line(arm_hand, blade_tip, Color(0.0, 0.98, 1.0), 3.0)
+		draw_line(arm_hand, blade_tip, Color(1.0, 1.0, 1.0), 1.5)
+		
+		# Arc slash shockwave
+		var arc_origin = Vector2(arm_shoulder.x + 14.0, arm_shoulder.y)
+		draw_arc(arc_origin, 28.0, -0.4 * PI, 0.4 * PI, 16, Color(0.0, 0.95, 1.0, 0.85), 3.0)
+		draw_arc(arc_origin, 26.0, -0.4 * PI, 0.4 * PI, 16, Color(1.0, 1.0, 1.0, 0.7), 1.5)
+	else:
+		var arm_swing: float = -leg_swing * 0.7 if is_moving else 0.0
+		var arm_hand = Vector2(arm_shoulder.x + 6.0 + arm_swing, arm_shoulder.y + 9.0)
+		draw_line(arm_shoulder, arm_hand, Color(0.2, 0.28, 0.36), 3.5)
+		draw_line(arm_hand + Vector2(-3.0, -2), arm_hand + Vector2(4.0, 2), Color(0.0, 0.85, 0.95), 2.0)
+
+func _draw_slide() -> void:
+	# Low clearance slide posture (fits easily under 24px overhead beams)
+	# 1. Scarf streaming straight back
+	var scarf_pts = PackedVector2Array([
+		Vector2(-4.0, 2.0),
+		Vector2(-16.0, 0.0),
+		Vector2(-24.0, 4.0),
+		Vector2(-14.0, 7.0),
+		Vector2(-3.0, 5.0)
+	])
+	draw_colored_polygon(scarf_pts, Color(0.95, 0.52, 0.12))
+	
+	# 2. Back Thruster puffing horizontal sparks
+	draw_rect(Rect2(-10, 2, 4, 6), Color(0.22, 0.26, 0.32))
+	var flame_pts = PackedVector2Array([
+		Vector2(-10, 3),
+		Vector2(-22, 5),
+		Vector2(-10, 7)
+	])
+	draw_colored_polygon(flame_pts, Color(0.0, 0.95, 1.0))
+	
+	# 3. Bent Back Leg skimming ground
+	draw_line(Vector2(-3.0, 6.0), Vector2(-11.0, 14.0), Color(0.16, 0.22, 0.3), 4.0)
+	draw_rect(Rect2(-14, 12, 6, 4), Color(0.08, 0.1, 0.14))
+	
+	# 4. Low Angled Torso & Armored Vest
+	var torso_pts = PackedVector2Array([
+		Vector2(-6.0, 1.0),
+		Vector2(5.0, 0.0),
+		Vector2(7.0, 10.0),
+		Vector2(-4.0, 11.0)
+	])
+	draw_colored_polygon(torso_pts, Color(0.25, 0.32, 0.4))
+	# Glowing chest core
+	draw_circle(Vector2(2.0, 5.0), 1.8, Color(0.0, 0.95, 1.0))
+	
+	# 5. Outstretched Front Leg grinding on floor
+	draw_line(Vector2(4.0, 7.0), Vector2(17.0, 14.0), Color(0.2, 0.28, 0.36), 4.5)
+	# Metal boot heel grinding
+	draw_rect(Rect2(15, 12, 8, 4), Color(0.08, 0.1, 0.14))
+	# Metal knee plate
+	draw_circle(Vector2(10.0, 10.0), 2.2, Color(0.35, 0.45, 0.55))
+	
+	# 6. Low Head & Cyber Visor (tucked low)
+	draw_rect(Rect2(1, -5, 8, 7), Color(0.16, 0.18, 0.22))
+	draw_rect(Rect2(1, -7, 7, 3), Color(0.18, 0.14, 0.12))
+	# Visor line
+	draw_rect(Rect2(5, -4, 5, 2), Color(0.0, 0.95, 1.0))
+	
+	# 7. Ground Bracing Arm
+	draw_line(Vector2(0.0, 4.0), Vector2(-6.0, 14.0), Color(0.22, 0.28, 0.35), 3.0)
+	# Friction spark highlight under boot heel
+	draw_line(Vector2(14, 16), Vector2(22, 16), Color(1.0, 0.8, 0.2), 2.0)
