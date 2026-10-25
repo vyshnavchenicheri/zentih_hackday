@@ -11,12 +11,16 @@ func _draw() -> void:
 	var is_dashing: bool = parent.is_dashing
 	var is_sliding: bool = parent.is_sliding
 	var is_moving: bool = abs(parent.velocity.x) > 0.1
-	var is_in_air: bool = not parent.is_on_floor()
+	var is_in_air: bool = (not parent.is_on_floor()) and not bool(parent.get("preview_idle"))
 	var slashing: bool = parent.slash_timer > 0.0 or is_dashing
 	var run_cycle: float = parent.run_cycle
 	
 	# Apply facing flip directly via CanvasItem transform
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(facing, 1.0))
+	
+	if parent.is_shapeshifted:
+		_draw_dog(is_moving, is_in_air, is_dashing, run_cycle)
+		return
 	
 	if is_sliding:
 		_draw_slide()
@@ -207,3 +211,133 @@ func _draw_slide() -> void:
 	draw_line(Vector2(0.0, 4.0), Vector2(-6.0, 14.0), Color(0.22, 0.28, 0.35), 3.0)
 	# Friction spark highlight under boot heel
 	draw_line(Vector2(14, 16), Vector2(22, 16), Color(1.0, 0.8, 0.2), 2.0)
+
+func _draw_dog(is_moving: bool, is_in_air: bool, is_dashing: bool, run_cycle: float) -> void:
+	var gallop: float = sin(run_cycle) * 7.0 if is_moving and not is_in_air else 0.0
+	var spine_bob: float = abs(sin(run_cycle * 2.0)) * 2.0 if is_moving and not is_in_air else 0.0
+	if is_in_air:
+		gallop = 4.0
+		spine_bob = -2.0
+	
+	# 1. HAZARD-ORANGE COLLAR SCARF (Flowing behind Cyber Hound)
+	var scarf_wind: float = sin(run_cycle * 1.8) * 4.0 if is_moving else sin(Time.get_ticks_msec() * 0.005) * 2.5
+	var scarf_pts = PackedVector2Array([
+		Vector2(-4.0, 3.0 + spine_bob),
+		Vector2(-14.0, 1.0 + spine_bob + scarf_wind * 0.5),
+		Vector2(-24.0, 4.0 + spine_bob + scarf_wind),
+		Vector2(-16.0, 9.0 + spine_bob + scarf_wind * 0.8),
+		Vector2(-3.0, 7.0 + spine_bob)
+	])
+	draw_colored_polygon(scarf_pts, Color(0.95, 0.52, 0.12))
+	draw_polyline(scarf_pts, Color(0.8, 0.38, 0.08), 1.2)
+	
+	# 2. BACK MOUNTED THRUSTER & JET FLAME
+	var thruster_pos = Vector2(-12.0, 3.0 + spine_bob)
+	draw_rect(Rect2(thruster_pos.x - 2, thruster_pos.y - 3, 4, 6), Color(0.22, 0.26, 0.32))
+	draw_rect(Rect2(thruster_pos.x - 3, thruster_pos.y - 2, 1, 4), Color(0.12, 0.15, 0.2))
+	
+	if is_moving or is_dashing or is_in_air:
+		var flame_len: float = -(24.0 if is_dashing else (12.0 + abs(sin(run_cycle * 3.0)) * 5.0))
+		var flame_w: float = 4.5 if is_dashing else 2.5
+		var flame_pts = PackedVector2Array([
+			Vector2(thruster_pos.x, thruster_pos.y - flame_w),
+			Vector2(thruster_pos.x + flame_len, thruster_pos.y),
+			Vector2(thruster_pos.x, thruster_pos.y + flame_w)
+		])
+		draw_colored_polygon(flame_pts, Color(0.0, 0.95, 1.0))
+		var inner_pts = PackedVector2Array([
+			Vector2(thruster_pos.x, thruster_pos.y - flame_w * 0.5),
+			Vector2(thruster_pos.x + flame_len * 0.5, thruster_pos.y),
+			Vector2(thruster_pos.x, thruster_pos.y + flame_w * 0.5)
+		])
+		draw_colored_polygon(inner_pts, Color(1.0, 1.0, 1.0, 0.9))
+	
+	# 3. BACK HIND LEG & PAW (Deep layer)
+	var hind_b_foot = Vector2(-11.0 - gallop * 0.7, 16.0)
+	draw_line(Vector2(-9.0, 6.0 + spine_bob), hind_b_foot + Vector2(0, -5), Color(0.16, 0.22, 0.28), 3.5)
+	draw_line(hind_b_foot + Vector2(0, -5), hind_b_foot, Color(0.12, 0.16, 0.22), 3.0)
+	draw_rect(Rect2(hind_b_foot.x - 3, hind_b_foot.y - 2, 6, 4), Color(0.08, 0.1, 0.14))
+	
+	# 4. BACK FORELEG & PAW (Deep layer)
+	var fore_b_foot = Vector2(10.0 + gallop * 0.7, 16.0)
+	draw_line(Vector2(8.0, 6.0 + spine_bob), fore_b_foot + Vector2(0, -5), Color(0.16, 0.22, 0.28), 3.5)
+	draw_line(fore_b_foot + Vector2(0, -5), fore_b_foot, Color(0.12, 0.16, 0.22), 3.0)
+	draw_rect(Rect2(fore_b_foot.x - 2, fore_b_foot.y - 2, 6, 4), Color(0.08, 0.1, 0.14))
+	
+	# 5. SLEEK ARMORED CANINE TORSO (Matching Leon's armor)
+	var torso_pts = PackedVector2Array([
+		Vector2(-12.0, 4.0 + spine_bob),
+		Vector2(1.0, 1.0 + spine_bob),
+		Vector2(11.0, 4.0 + spine_bob),
+		Vector2(9.0, 11.0 + spine_bob),
+		Vector2(-9.0, 11.0 + spine_bob)
+	])
+	draw_colored_polygon(torso_pts, Color(0.25, 0.32, 0.4))
+	draw_polyline(torso_pts, Color(0.14, 0.18, 0.24), 1.5)
+	
+	# Glowing Cyan Fusion Core on Chest Harness
+	draw_circle(Vector2(2.0, 7.0 + spine_bob), 2.4, Color(0.0, 0.95, 1.0))
+	draw_circle(Vector2(2.0, 7.0 + spine_bob), 1.2, Color(1.0, 1.0, 1.0))
+	
+	# Tactical belt detail
+	draw_rect(Rect2(-8, 9.0 + spine_bob, 5, 2), Color(0.6, 0.45, 0.2))
+	
+	# 6. FRONT HIND LEG & PAW (Foreground layer)
+	var hind_f_foot = Vector2(-9.0 + gallop, 16.0)
+	draw_line(Vector2(-8.0, 6.0 + spine_bob), hind_f_foot + Vector2(-1, -5), Color(0.2, 0.28, 0.36), 4.5)
+	draw_circle(hind_f_foot + Vector2(-1, -5), 2.2, Color(0.35, 0.45, 0.55)) # Cyber joint
+	draw_line(hind_f_foot + Vector2(-1, -5), hind_f_foot, Color(0.16, 0.22, 0.3), 3.5)
+	draw_rect(Rect2(hind_f_foot.x - 3, hind_f_foot.y - 2, 7, 4), Color(0.08, 0.1, 0.14))
+	
+	# 7. FRONT FORELEG & PAW (Foreground layer)
+	var fore_f_foot = Vector2(10.0 - gallop, 16.0)
+	draw_line(Vector2(9.0, 6.0 + spine_bob), fore_f_foot + Vector2(1, -5), Color(0.2, 0.28, 0.36), 4.5)
+	draw_circle(fore_f_foot + Vector2(1, -5), 2.2, Color(0.35, 0.45, 0.55)) # Cyber joint
+	draw_line(fore_f_foot + Vector2(1, -5), fore_f_foot, Color(0.16, 0.22, 0.3), 3.5)
+	draw_rect(Rect2(fore_f_foot.x - 2, fore_f_foot.y - 2, 7, 4), Color(0.08, 0.1, 0.14))
+	
+	# 8. CYBER HOUND HEAD, EARS, AND GLOWING VISOR
+	var head_pos = Vector2(12.0, 2.0 + spine_bob)
+	# Cranium & Muzzle
+	draw_rect(Rect2(head_pos.x - 3, head_pos.y - 5, 8, 8), Color(0.16, 0.18, 0.22))
+	draw_rect(Rect2(head_pos.x + 5, head_pos.y - 2, 7, 5), Color(0.22, 0.28, 0.35))
+	
+	# Spiky cyber hair / crest
+	draw_rect(Rect2(head_pos.x - 4, head_pos.y - 8, 7, 4), Color(0.18, 0.14, 0.12))
+	var crest = PackedVector2Array([
+		Vector2(head_pos.x - 2, head_pos.y - 8),
+		Vector2(head_pos.x - 8, head_pos.y - 6),
+		Vector2(head_pos.x - 3, head_pos.y - 3)
+	])
+	draw_colored_polygon(crest, Color(0.18, 0.14, 0.12))
+	
+	# Alert Cyber Ear
+	var ear_pts = PackedVector2Array([
+		Vector2(head_pos.x - 1, head_pos.y - 5),
+		Vector2(head_pos.x + 2, head_pos.y - 10),
+		Vector2(head_pos.x + 4, head_pos.y - 5)
+	])
+	draw_colored_polygon(ear_pts, Color(0.25, 0.32, 0.4))
+	draw_line(Vector2(head_pos.x + 2, head_pos.y - 10), Vector2(head_pos.x + 2, head_pos.y - 5), Color(0.0, 0.95, 1.0), 1.0)
+	
+	# Glowing Cyan Cyber Visor (Matching Leon)
+	var visor_origin = Vector2(head_pos.x + 3.0, head_pos.y - 4)
+	draw_rect(Rect2(visor_origin.x - 1, visor_origin.y - 1, 7, 4), Color(0.08, 0.1, 0.14))
+	draw_rect(Rect2(visor_origin.x, visor_origin.y, 5, 2), Color(0.0, 0.95, 1.0))
+	draw_line(visor_origin + Vector2(1, 1), visor_origin + Vector2(5, 1), Color(1.0, 1.0, 1.0), 1.0)
+	
+	# 9. ENERGIZED RAZOR FANGS & ZOMBIE SHREDDER JAWS
+	var jaw_y = head_pos.y + 3.0
+	draw_rect(Rect2(head_pos.x + 6, jaw_y, 6, 2), Color(0.12, 0.15, 0.2))
+	# Glowing cyan energy fangs
+	draw_line(Vector2(head_pos.x + 8, jaw_y), Vector2(head_pos.x + 9, jaw_y + 3), Color(0.0, 0.95, 1.0), 1.5)
+	draw_line(Vector2(head_pos.x + 11, jaw_y), Vector2(head_pos.x + 12, jaw_y + 3), Color(0.0, 0.95, 1.0), 1.5)
+	
+	# 10. CYBER SHRED ENERGY AURA (Active in dog form)
+	if is_moving or is_dashing:
+		var aura_time = Time.get_ticks_msec() * 0.015
+		for k in range(3):
+			var ax = head_pos.x + 7.0 + k * 4.0
+			var ay = jaw_y + sin(aura_time + k) * 3.0
+			draw_line(Vector2(ax, ay), Vector2(ax + 3, ay - 2), Color(0.0, 0.95, 1.0, 0.8), 1.5)
+
